@@ -14,6 +14,9 @@ class Settings:
     # API Configuration
     API_V1_PREFIX: str = "/api"
     
+    # CORS Configuration
+    FRONTEND_URL: str = os.getenv("FRONTEND_URL", "http://localhost:3000")
+    
     # Statistical defaults
     DEFAULT_ALPHA: float = 0.05
     DEFAULT_POWER: float = 0.8

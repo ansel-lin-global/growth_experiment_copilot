@@ -11,9 +11,18 @@ app = FastAPI(
 )
 
 # CORS middleware for frontend
+# Allow localhost for development and Vercel deployments for production
+allowed_origins = [
+    "http://localhost:3000",  # Local development
+    "http://localhost:3001",  # Alternative local port
+    settings.FRONTEND_URL,     # Production frontend (from env var)
+]
+
+# Also allow all Vercel preview deployments
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3000"],  # Next.js default port
+    allow_origins=allowed_origins,
+    allow_origin_regex=r"https://.*\.vercel\.app",  # Allow all Vercel deployments
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
