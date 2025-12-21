@@ -3,32 +3,33 @@
 import { useState, useRef, useEffect, useCallback } from 'react'
 import { sendAgentChat, ChatMessage, AgentChatResponse } from '@/lib/api'
 import ReactMarkdown from 'react-markdown'
+import Image from 'next/image'
 
 // Intent display names and colors
 const intentDisplay: Record<string, { label: string; color: string; bgColor: string }> = {
-  experiment_design: { 
-    label: 'Experiment Design', 
-    color: 'text-neon-purple', 
+  experiment_design: {
+    label: 'Experiment Design',
+    color: 'text-neon-purple',
     bgColor: 'bg-neon-purple/20 border-neon-purple/50'
   },
-  ab_test_analysis: { 
-    label: 'A/B Test Analysis', 
-    color: 'text-neon-cyan', 
+  ab_test_analysis: {
+    label: 'A/B Test Analysis',
+    color: 'text-neon-cyan',
     bgColor: 'bg-neon-cyan/20 border-neon-cyan/50'
   },
-  causal_analysis: { 
-    label: 'Causal Analysis', 
-    color: 'text-neon-pink', 
+  causal_analysis: {
+    label: 'Causal Analysis',
+    color: 'text-neon-pink',
     bgColor: 'bg-neon-pink/20 border-neon-pink/50'
   },
-  clarification_needed: { 
-    label: 'Need More Info', 
-    color: 'text-yellow-400', 
+  clarification_needed: {
+    label: 'Need More Info',
+    color: 'text-yellow-400',
     bgColor: 'bg-yellow-400/20 border-yellow-400/50'
   },
-  general_conversation: { 
-    label: 'General', 
-    color: 'text-gray-400', 
+  general_conversation: {
+    label: 'General',
+    color: 'text-gray-400',
     bgColor: 'bg-gray-400/20 border-gray-400/50'
   },
 }
@@ -92,10 +93,7 @@ export default function AgentPage() {
     }
   }, [sessions])
 
-  // Scroll to bottom when messages update
-  useEffect(() => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
-  }, [sessions, activeSessionId])
+
 
   // Focus input on mount
   useEffect(() => {
@@ -104,6 +102,15 @@ export default function AgentPage() {
 
   const activeSession = sessions.find(s => s.id === activeSessionId)
   const messages = activeSession?.messages || []
+
+  // Scroll to bottom only when new messages are added (not on initial load)
+  const prevMessagesLength = useRef(0)
+  useEffect(() => {
+    if (messages.length > prevMessagesLength.current) {
+      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    }
+    prevMessagesLength.current = messages.length
+  }, [messages.length])
 
   const createNewSession = useCallback(() => {
     const newSession: ChatSession = {
@@ -133,7 +140,7 @@ export default function AgentPage() {
 
   const updateSessionTitle = useCallback((sessionId: string, firstMessage: string) => {
     const title = firstMessage.slice(0, 30) + (firstMessage.length > 30 ? '...' : '')
-    setSessions(prev => prev.map(s => 
+    setSessions(prev => prev.map(s =>
       s.id === sessionId ? { ...s, title, updatedAt: new Date() } : s
     ))
   }, [])
@@ -171,7 +178,7 @@ export default function AgentPage() {
     setSessions(prev => prev.map(s => {
       if (s.id === currentSessionId) {
         const updatedMessages = [...s.messages, newUserMessage]
-        const newTitle = s.messages.length === 0 
+        const newTitle = s.messages.length === 0
           ? userMessage.slice(0, 30) + (userMessage.length > 30 ? '...' : '')
           : s.title
         return { ...s, messages: updatedMessages, title: newTitle, updatedAt: new Date() }
@@ -233,7 +240,7 @@ export default function AgentPage() {
   }
 
   return (
-    <div className="h-[calc(100vh-4rem)] flex relative z-10">
+    <div className="fixed inset-0 top-16 flex z-10 bg-gradient-to-b from-purple-950/20 via-transparent to-transparent bg-dark-bg">
       {/* Sidebar */}
       <div className={`${sidebarOpen ? 'w-64' : 'w-0'} flex-shrink-0 transition-all duration-300 overflow-hidden`}>
         <div className="h-full w-64 glass border-r border-gray-700/50 flex flex-col">
@@ -255,11 +262,10 @@ export default function AgentPage() {
             {sessions.map((session) => (
               <div
                 key={session.id}
-                className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 ${
-                  activeSessionId === session.id
-                    ? 'bg-neon-purple/20 border border-neon-purple/50'
-                    : 'hover:bg-gray-700/30 border border-transparent'
-                }`}
+                className={`group flex items-center gap-2 px-3 py-2 rounded-lg cursor-pointer transition-all duration-200 ${activeSessionId === session.id
+                  ? 'bg-neon-purple/20 border border-neon-purple/50'
+                  : 'hover:bg-gray-700/30 border border-transparent'
+                  }`}
                 onClick={() => setActiveSessionId(session.id)}
               >
                 <svg className="w-4 h-4 text-gray-400 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -301,7 +307,7 @@ export default function AgentPage() {
           <div className="max-w-4xl mx-auto p-4 space-y-4">
             {messages.length === 0 && (
               <div className="h-full flex flex-col items-center justify-center text-center px-4 py-20">
-                <div className="w-20 h-20 mb-6 rounded-full bg-gradient-to-br from-neon-purple via-neon-pink to-neon-cyan flex items-center justify-center">
+                <div className="w-24 h-24 mb-6 rounded-2xl bg-gradient-to-br from-purple-600 via-pink-500 to-orange-400 flex items-center justify-center shadow-[0_0_60px_rgba(168,85,247,0.5)] animate-pulse">
                   <svg
                     className="w-10 h-10 text-white"
                     fill="none"
@@ -316,7 +322,7 @@ export default function AgentPage() {
                     />
                   </svg>
                 </div>
-                <h2 className="text-xl font-semibold text-white mb-2">
+                <h2 className="text-2xl font-bold bg-gradient-to-r from-white via-purple-200 to-pink-200 bg-clip-text text-transparent mb-2">
                   Growth Experiment Agent
                 </h2>
                 <p className="text-gray-400 max-w-md mb-6">
@@ -333,7 +339,7 @@ export default function AgentPage() {
                     <button
                       key={idx}
                       onClick={() => setInput(example)}
-                      className="text-left p-3 glass rounded-lg border border-gray-700/50 hover:border-neon-purple/50 text-gray-300 hover:text-white text-sm transition-all duration-300"
+                      className="text-left p-4 rounded-xl border border-purple-500/20 bg-gradient-to-r from-purple-900/20 to-pink-900/20 hover:border-purple-500/50 hover:from-purple-900/40 hover:to-pink-900/40 text-gray-300 hover:text-white text-sm transition-all duration-300 shadow-lg hover:shadow-purple-500/20"
                     >
                       <span className="text-neon-purple mr-2">▸</span>
                       {example}
@@ -346,25 +352,22 @@ export default function AgentPage() {
             {messages.map((message, idx) => (
               <div
                 key={idx}
-                className={`flex ${
-                  message.role === 'user' ? 'justify-end' : 'justify-start'
-                }`}
+                className={`flex ${message.role === 'user' ? 'justify-end' : 'justify-start'
+                  }`}
               >
                 <div
-                  className={`max-w-[85%] rounded-xl p-4 ${
-                    message.role === 'user'
-                      ? 'bg-gradient-to-br from-neon-purple/30 to-neon-pink/30 border border-neon-purple/50'
-                      : 'glass border border-gray-700'
-                  }`}
+                  className={`max-w-[85%] rounded-xl p-4 ${message.role === 'user'
+                    ? 'bg-gradient-to-br from-neon-purple/30 to-neon-pink/30 border border-neon-purple/50'
+                    : 'glass border border-gray-700'
+                    }`}
                 >
                   {/* Intent badge for assistant messages */}
                   {message.role === 'assistant' && message.intent && (
                     <div className="mb-2">
                       <span
-                        className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded border ${
-                          intentDisplay[message.intent]?.bgColor ||
+                        className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded border ${intentDisplay[message.intent]?.bgColor ||
                           'bg-gray-500/20 border-gray-500/50'
-                        } ${intentDisplay[message.intent]?.color || 'text-gray-400'}`}
+                          } ${intentDisplay[message.intent]?.color || 'text-gray-400'}`}
                       >
                         {intentDisplay[message.intent]?.label || message.intent}
                       </span>
@@ -373,9 +376,8 @@ export default function AgentPage() {
 
                   {/* Message content */}
                   <div
-                    className={`text-sm ${
-                      message.role === 'user' ? 'text-white' : 'text-gray-200'
-                    }`}
+                    className={`text-sm ${message.role === 'user' ? 'text-white' : 'text-gray-200'
+                      }`}
                   >
                     {message.role === 'assistant' ? (
                       <div className="prose prose-invert prose-sm max-w-none">
@@ -429,9 +431,8 @@ export default function AgentPage() {
 
                   {/* Timestamp */}
                   <div
-                    className={`mt-2 text-xs ${
-                      message.role === 'user' ? 'text-neon-purple/70' : 'text-gray-500'
-                    }`}
+                    className={`mt-2 text-xs ${message.role === 'user' ? 'text-neon-purple/70' : 'text-gray-500'
+                      }`}
                   >
                     {message.timestamp.toLocaleTimeString('en-US', {
                       hour: '2-digit',
@@ -484,7 +485,7 @@ export default function AgentPage() {
                   onKeyDown={handleKeyDown}
                   placeholder="Describe your experiment or analysis needs..."
                   rows={1}
-                  className="w-full px-4 py-3 pr-32 bg-dark-bg-secondary/50 border border-gray-700 rounded-xl text-white placeholder:text-gray-400 focus:outline-none focus:border-neon-purple focus:ring-2 focus:ring-neon-purple/30 transition-all duration-300 resize-none min-h-[48px] max-h-[120px]"
+                  className="w-full px-4 py-3 pr-32 bg-dark-bg-secondary/50 border border-gray-700 rounded-xl text-white placeholder:!text-gray-500 placeholder:!opacity-40 focus:outline-none focus:border-neon-purple focus:ring-2 focus:ring-neon-purple/30 transition-all duration-300 resize-none min-h-[48px] max-h-[120px]"
                   style={{ height: 'auto' }}
                   onInput={(e) => {
                     const target = e.target as HTMLTextAreaElement
@@ -499,7 +500,7 @@ export default function AgentPage() {
               <button
                 type="submit"
                 disabled={loading || !input.trim()}
-                className="px-6 py-3 bg-gradient-to-r from-neon-purple to-neon-pink text-white rounded-xl font-medium hover:shadow-neon-purple focus:outline-none focus:ring-2 focus:ring-neon-purple focus:ring-offset-2 focus:ring-offset-dark-bg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2 min-w-[100px] justify-center"
+                className="px-6 py-3 bg-gradient-to-r from-purple-600 via-pink-500 to-rose-500 text-white rounded-xl font-medium hover:shadow-[0_0_30px_rgba(168,85,247,0.5)] focus:outline-none focus:ring-2 focus:ring-purple-500 focus:ring-offset-2 focus:ring-offset-dark-bg disabled:opacity-50 disabled:cursor-not-allowed transition-all duration-300 flex items-center gap-2 min-w-[100px] justify-center"
               >
                 {loading ? (
                   <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
@@ -509,8 +510,12 @@ export default function AgentPage() {
                 ) : (
                   <>
                     <span>Send</span>
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8" />
+                    <svg
+                      className="w-5 h-5 -rotate-45 -translate-y-0.5"
+                      fill="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path d="M2.01 21L23 12 2.01 3 2 10l15 2-15 2z" />
                     </svg>
                   </>
                 )}
