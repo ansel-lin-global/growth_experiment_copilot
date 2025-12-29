@@ -21,8 +21,12 @@ class ExperimentDesignCard(BaseModel):
     secondary_metrics: List[str] = Field(default_factory=list, description="List of secondary metrics")
     design_type: str = Field(..., description="Experiment type: A/B, A/B/n, or AA")
     variants: str = Field(..., description="Suggested number of variants and naming")
+    population: Optional[str] = Field(None, description="Target population or segment")
+    randomization_unit: Optional[str] = Field(None, description="Unit of randomization (e.g., user, session)")
+    traffic_allocation: Optional[str] = Field(None, description="Traffic split across variants")
     sample_size_per_variant: Optional[int] = Field(None, description="Required sample size per variant")
     estimated_duration_days: Optional[int] = Field(None, description="Estimated experiment duration in days")
+    guardrail_metrics: List[str] = Field(default_factory=list, description="List of guardrail metrics to monitor")
     notes: List[str] = Field(default_factory=list, description="Important design considerations")
 
 

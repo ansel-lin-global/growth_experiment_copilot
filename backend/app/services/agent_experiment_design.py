@@ -47,26 +47,37 @@ class ExperimentDesignAgent:
             Dictionary with design_card and llm_explanation
         """
         prompt_template = ChatPromptTemplate.from_messages([
-            ("system", """You are an expert experiment design consultant. Your task is to analyze a natural language description of an experiment and extract structured information.
+            ("system", """You are a senior Product Data Scientist specializing in experiment design. 
+Your task is to analyze an experiment description and extract structured parameters for a formal design blueprint.
 
-Extract the following:
-1. Target event (e.g., "add_to_cart", "purchase", "open", "click")
-2. Metric type: "proportion" (for conversion rates, CTR, CVR), "revenue" (for revenue metrics), or "mean" (for average values)
-3. Experiment type: "A/B" (two variants), "A/B/n" (multiple variants), or "AA" (sanity check)
-4. Effect direction: "increase", "decrease", or "non-inferiority"
-5. Primary and secondary metrics
-6. Important design considerations (seasonality, confounders, holiday risks, etc.)
+Guidelines:
+- Tone: Professional, neutral, and concise. 
+- Goal: Short plain English summary of the objective.
+- Hypothesis: Provide H0 (null) and H1 (alternative). 
+  - Standardize as two-sided ("is different from") unless the user explicitly specifies a direction like "increase", "higher", or "better".
+  - If a direction is specified, use one-sided ("is higher than").
+  - Ensure clean punctuation (no double periods).
+- Design type: Usually "A/B".
+- Variants: Use clear names like "Control", "Treatment A", etc.
+- Population: Target segment if mentioned (e.g., "All mobile users").
+- Randomization Unit: Default to "user" if not specified, but mark as assumption.
+- Traffic Allocation: Default to "50/50" for 2 variants if not specified.
+- Metrics: Identify primary, secondary, and guardrail metrics (e.g., latency, bounce rate).
 
 Respond with a JSON object containing:
-- goal: short plain English summary
-- hypothesis: H0 and H1 in natural language
-- primary_metrics: list of primary metrics
-- secondary_metrics: list of secondary metrics
-- design_type: "A/B", "A/B/n", or "AA"
-- variants: suggested number of variants and naming (e.g., "2 variants: control and treatment_a")
-- notes: list of important design considerations
+- goal: string
+- hypothesis: string (formatted as "H0: ... H1: ...")
+- primary_metrics: list of strings
+- secondary_metrics: list of strings
+- guardrail_metrics: list of strings
+- design_type: string
+- variants: string
+- population: string or null
+- randomization_unit: string or null
+- traffic_allocation: string or null
+- notes: list of strings
 
-Be concise but thorough."""),
+Be specific and actionable. Avoid generic advice."""),
             ("human", """Experiment description: {description}
 
 Additional context:
@@ -105,36 +116,44 @@ Provide the experiment design in JSON format.""")
             
             design_data = json.loads(content)
         except json.JSONDecodeError:
-            # Fallback: try to extract key fields manually
+            # Fallback
             design_data = {
                 "goal": "Experiment to test the described change",
                 "hypothesis": "H0: No difference between variants. H1: Treatment differs from control.",
                 "primary_metrics": ["conversion_rate"],
                 "secondary_metrics": [],
+                "guardrail_metrics": [],
                 "design_type": "A/B",
                 "variants": "2 variants: control and treatment",
-                "notes": ["Ensure proper randomization", "Monitor for external factors"]
+                "notes": ["Ensure proper randomization"]
             }
         
-        # Generate explanation
+        # Generate explanation (Rationale)
         explanation_prompt = ChatPromptTemplate.from_messages([
-            ("system", "You are an experiment design consultant explaining experiment design to a product manager."),
-            ("human", """Based on this experiment description: "{description}"
+            ("system", """You are a senior Product Data Scientist. 
+Explain the design rationale for this experiment to a Product Manager.
+Tone: Professional, neutral, concise. 
+Format: Use exactly three sections with these headings:
+1) Why this experiment
+2) Key design choices
+3) Checks before running
 
-And the design parameters:
+Rules:
+- Use bullet points (max 6 per section).
+- No chatty openings like "Absolutely!" or "Great idea!".
+- No concluding generic advice like "Feel free to ask".
+- Keep it specific to this scenario.
+- If baseline rate, MDE, or traffic are missing, explicitly state they are required for sample size calculation."""),
+            ("human", """Experiment: "{description}"
+
+Design:
 - Design type: {design_type}
 - Variants: {variants}
 - Primary metrics: {primary_metrics}
-- Sample size: {sample_size} per variant
-- Duration: {estimated_duration} days
+- Sample size: {sample_size}
+- Duration: {estimated_duration}
 
-Provide a clear, natural language explanation of:
-1. What this experiment is testing
-2. Why this design is appropriate
-3. What to watch out for
-4. How to interpret results
-
-Be conversational and helpful.""")
+Provide the structured rationale.""")
         ])
         
         explanation_response = self.llm.invoke(explanation_prompt.format_messages(
@@ -142,8 +161,8 @@ Be conversational and helpful.""")
             design_type=design_data.get("design_type", "A/B"),
             variants=design_data.get("variants", "2 variants"),
             primary_metrics=", ".join(design_data.get("primary_metrics", [])),
-            sample_size=sample_size if sample_size else "TBD",
-            estimated_duration=estimated_duration if estimated_duration else "TBD"
+            sample_size=f"{sample_size} per variant" if sample_size else "Not available (missing inputs)",
+            estimated_duration=f"{estimated_duration} days" if estimated_duration else "Not available"
         ))
         
         # LangChain 1.0: response is an AIMessage with content attribute
@@ -171,8 +190,12 @@ Be conversational and helpful.""")
             hypothesis=hypothesis,
             primary_metrics=design_data.get("primary_metrics", ["conversion_rate"]),
             secondary_metrics=design_data.get("secondary_metrics", []),
+            guardrail_metrics=design_data.get("guardrail_metrics", []),
             design_type=design_data.get("design_type", "A/B"),
             variants=variants,
+            population=design_data.get("population"),
+            randomization_unit=design_data.get("randomization_unit"),
+            traffic_allocation=design_data.get("traffic_allocation"),
             sample_size_per_variant=sample_size,
             estimated_duration_days=estimated_duration,
             notes=design_data.get("notes", [])

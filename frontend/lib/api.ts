@@ -19,8 +19,12 @@ export interface ExperimentDesignResponse {
     hypothesis: string
     primary_metrics: string[]
     secondary_metrics: string[]
+    guardrail_metrics: string[]
     design_type: string
     variants: string
+    population: string | null
+    randomization_unit: string | null
+    traffic_allocation: string | null
     sample_size_per_variant: number | null
     estimated_duration_days: number | null
     notes: string[]

@@ -18,7 +18,38 @@ export default function Home() {
         </div>
 
         {/* Feature Cards */}
-        <div className="grid md:grid-cols-2 gap-6 max-w-5xl mx-auto">
+        <div className="grid md:grid-cols-3 gap-6 max-w-7xl mx-auto">
+          <Link
+            href="/agent"
+            className="group block p-8 surface-card rounded-xl relative overflow-hidden"
+          >
+            <div className="absolute top-0 right-0 w-32 h-32 bg-fuchsia-500/10 blur-[60px] rounded-full group-hover:bg-fuchsia-500/20 transition-all" />
+
+            <div className="relative z-10">
+              <div className="flex items-center mb-6">
+                <div className="w-12 h-12 bg-slate-800 border border-slate-700 rounded-lg flex items-center justify-center mr-4 group-hover:border-fuchsia-500/50 transition-colors">
+                  <svg className="w-6 h-6 text-fuchsia-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={1.5} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
+                  </svg>
+                </div>
+                <h2 className="text-xl font-semibold text-slate-100 group-hover:text-white transition-colors">
+                  Agent Chat
+                </h2>
+              </div>
+
+              <p className="text-slate-400 text-sm leading-relaxed mb-6 group-hover:text-slate-300 transition-colors">
+                Interact with our AI agent to brainstorm ideas, design experiments, and interpret results through natural language conversation.
+              </p>
+
+              <div className="flex items-center text-sm font-medium text-fuchsia-400 group-hover:text-fuchsia-300 transition-colors">
+                <span>Start Chatting</span>
+                <svg className="w-4 h-4 ml-2 transform group-hover:translate-x-1 transition-transform" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </div>
+            </div>
+          </Link>
+
           <Link
             href="/experiment-design"
             className="group block p-8 surface-card rounded-xl relative overflow-hidden"
