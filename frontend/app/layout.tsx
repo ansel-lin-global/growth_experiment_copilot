@@ -28,7 +28,7 @@ export default function RootLayout({
           <div className="absolute top-1/2 left-1/2 w-64 h-64 bg-neon-pink/5 rounded-full blur-3xl -translate-x-1/2 -translate-y-1/2" />
         </div>
         <Navigation />
-        <main className="min-h-screen relative z-10">
+        <main className="min-h-screen relative">
           {children}
         </main>
       </body>

@@ -9,7 +9,7 @@ export default function Navigation() {
 
   const navItems = [
     { href: '/', label: 'Home' },
-    { href: '/agent', label: 'Agent Chat', highlight: true },
+    { href: '/agent', label: 'Agent Chat' },
     { href: '/experiment-design', label: 'Experiment Design' },
     { href: '/analysis', label: 'Results Analysis' },
   ]
@@ -46,9 +46,7 @@ export default function Navigation() {
                     href={item.href}
                     className={`inline-flex items-center px-1 pt-1 border-b-2 text-sm font-medium transition-all duration-300 ${isActive
                       ? 'border-neon-purple text-white'
-                      : item.highlight
-                        ? 'border-transparent text-neon-pink hover:text-neon-cyan hover:border-neon-cyan/50'
-                        : 'border-transparent text-gray-400 hover:text-neon-cyan hover:border-neon-cyan/50'
+                      : 'border-transparent text-gray-400 hover:text-neon-cyan hover:border-neon-cyan/50'
                       }`}
                   >
                     {item.label}

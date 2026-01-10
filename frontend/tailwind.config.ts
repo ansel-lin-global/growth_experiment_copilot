@@ -31,6 +31,19 @@ const config: Config = {
         fuchsia: {
           500: '#d946ef', // Highlight
         },
+        // Rose-gold palette for premium SaaS aesthetic
+        rosegold: {
+          50: '#fdf8f6',
+          100: '#f9ebe6',
+          200: '#f3d5cc',
+          300: '#e8b4a6',
+          400: '#d4907d',   // Primary accent
+          500: '#c17a66',   // Hover/active states
+          600: '#a8604e',   // Strong accent
+          700: '#8a4d3f',
+          800: '#6d3d32',
+          900: '#5a3229',
+        },
       },
       animation: {
         'fade-in': 'fadeIn 0.5s ease-out',
