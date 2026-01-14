@@ -82,7 +82,7 @@ export default function AnalysisPage() {
   return (
     <div className="min-h-screen bg-[#0B0F19] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-rose-900/20 via-[#0B0F19] to-[#0B0F19]">
       {/* Top Nav */}
-      <div className="border-b border-white/5 bg-[#0B0F19]/80 backdrop-blur-md sticky top-0 z-50">
+      <div className="border-b border-white/10 bg-[#0B0F19]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/" className="text-slate-400 hover:text-white transition-colors flex items-center gap-2 group">
@@ -96,6 +96,11 @@ export default function AnalysisPage() {
               <span className="w-2 h-2 rounded-full bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]"></span>
               Results Analysis Copilot
             </h1>
+          </div>
+          <div className="flex items-center gap-2">
+            <div className="px-3 py-1 rounded-full border border-rose-500/30 bg-rose-500/10 text-[10px] font-mono text-rose-300 uppercase tracking-widest shadow-[0_0_15px_rgba(244,63,94,0.15)]">
+              Analysis Module Active
+            </div>
           </div>
         </div>
       </div>

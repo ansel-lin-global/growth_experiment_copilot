@@ -21,19 +21,38 @@ export default function ExperimentOutput({ result, inputs }: ExperimentOutputPro
         { id: 'next-steps', label: 'Next steps' },
     ] as const
 
+    // Helper functions to determine provided status with explicit null/undefined checks
+    const isProvided = (value: any): boolean => value !== undefined && value !== null
+
+    // Dynamic reason generation for missing inputs
+    const getSampleSizeReason = (): string => {
+        const missing: string[] = []
+        if (!isProvided(inputs.baseline_rate)) missing.push('baseline rate')
+        if (!isProvided(inputs.minimum_detectable_effect)) missing.push('MDE')
+        return missing.length > 0 ? `Missing ${missing.join(' and ')}` : ''
+    }
+
+    const getDurationReason = (): string => {
+        const missing: string[] = []
+        if (!isProvided(inputs.baseline_rate)) missing.push('baseline rate')
+        if (!isProvided(inputs.minimum_detectable_effect)) missing.push('MDE')
+        if (!isProvided(inputs.expected_daily_traffic)) missing.push('daily traffic')
+        return missing.length > 0 ? `Missing ${missing.join(', ')}` : ''
+    }
+
     const nextSteps = [
-        { label: 'Baseline metric value', value: inputs.baseline_rate, key: 'baseline_rate' },
-        { label: 'Minimum detectable effect (MDE)', value: inputs.minimum_detectable_effect, key: 'mde' },
-        { label: 'Daily traffic volume', value: inputs.expected_daily_traffic, key: 'traffic' },
-        { label: 'Unit of randomization', value: design_card.randomization_unit, key: 'randomization' },
-        { label: 'Traffic allocation', value: design_card.traffic_allocation, key: 'allocation' },
-        { label: 'Target segment', value: design_card.population, key: 'segment' },
-        { label: 'Guardrail metrics', value: design_card.guardrail_metrics.length > 0 ? true : null, key: 'guardrails' },
+        { label: 'Baseline metric value', value: isProvided(inputs.baseline_rate), key: 'baseline_rate' },
+        { label: 'Minimum detectable effect (MDE)', value: isProvided(inputs.minimum_detectable_effect), key: 'mde' },
+        { label: 'Daily traffic volume', value: isProvided(inputs.expected_daily_traffic), key: 'traffic' },
+        { label: 'Unit of randomization', value: isProvided(design_card.randomization_unit), key: 'randomization' },
+        { label: 'Traffic allocation', value: isProvided(design_card.traffic_allocation), key: 'allocation' },
+        { label: 'Target segment', value: isProvided(design_card.population), key: 'segment' },
+        { label: 'Guardrail metrics', value: design_card.guardrail_metrics.length > 0, key: 'guardrails' },
     ]
 
     const outputs = [
-        { label: 'Sample size per variant', value: design_card.sample_size_per_variant, reason: 'Missing baseline rate or MDE' },
-        { label: 'Estimated duration', value: design_card.estimated_duration_days, reason: 'Missing daily traffic volume' },
+        { label: 'Sample size per variant', value: design_card.sample_size_per_variant, reason: getSampleSizeReason() },
+        { label: 'Estimated duration', value: design_card.estimated_duration_days, reason: getDurationReason() },
     ]
 
     return (
@@ -46,8 +65,8 @@ export default function ExperimentOutput({ result, inputs }: ExperimentOutputPro
                 </h2>
                 <div className="flex items-center gap-3">
                     <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider border ${isReady
-                            ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
-                            : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
+                        ? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-400'
+                        : 'bg-amber-500/10 border-amber-500/30 text-amber-400'
                         }`}>
                         {isReady ? 'Ready' : 'Draft'}
                     </span>
@@ -64,8 +83,8 @@ export default function ExperimentOutput({ result, inputs }: ExperimentOutputPro
                         key={tab.id}
                         onClick={() => setActiveTab(tab.id)}
                         className={`px-6 py-3 text-xs font-bold uppercase tracking-widest transition-all relative ${activeTab === tab.id
-                                ? 'text-purple-400'
-                                : 'text-slate-500 hover:text-slate-300'
+                            ? 'text-purple-400'
+                            : 'text-slate-500 hover:text-slate-300'
                             }`}
                     >
                         {tab.label}
@@ -197,9 +216,10 @@ export default function ExperimentOutput({ result, inputs }: ExperimentOutputPro
                 {activeTab === 'rationale' && (
                     <div className="animate-fade-in">
                         <div className="prose prose-invert max-w-none 
-              prose-h1:text-sm prose-h1:font-bold prose-h1:uppercase prose-h1:tracking-widest prose-h1:text-purple-400 prose-h1:mb-4
+              prose-h2:text-base prose-h2:font-bold prose-h2:text-purple-400 prose-h2:mt-6 prose-h2:mb-3 prose-h2:border-b prose-h2:border-purple-500/20 prose-h2:pb-2
               prose-p:text-sm prose-p:text-slate-300 prose-p:leading-relaxed
-              prose-li:text-sm prose-li:text-slate-300
+              prose-ul:list-disc prose-ul:list-inside prose-ul:my-3 prose-ul:space-y-2
+              prose-li:text-sm prose-li:text-slate-300 prose-li:pl-1
               prose-strong:text-white prose-strong:font-bold">
                             <ReactMarkdown>{llm_explanation}</ReactMarkdown>
                         </div>

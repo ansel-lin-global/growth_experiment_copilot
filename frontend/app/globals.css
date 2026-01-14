@@ -207,3 +207,23 @@ textarea:-ms-input-placeholder {
     text-wrap: balance;
   }
 }
+
+/* Prose list styling - override Tailwind reset to show bullet markers */
+.prose ul {
+  list-style-type: disc !important;
+  list-style-position: inside !important;
+  padding-left: 0.5rem !important;
+  margin-top: 0.5rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.prose ul li {
+  display: list-item !important;
+  padding-left: 0.25rem !important;
+  margin-bottom: 0.5rem !important;
+}
+
+.prose ul li::marker {
+  color: #a78bfa !important;
+  /* purple-400 */
+}

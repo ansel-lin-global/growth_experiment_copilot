@@ -7,11 +7,11 @@ import ExperimentOutput from '@/components/ExperimentOutput'
 
 export default function ExperimentDesignPage() {
   const [description, setDescription] = useState('')
-  const [baselineRate, setBaselineRate] = useState('')
-  const [mde, setMde] = useState('')
+  const [baselineRate, setBaselineRate] = useState('0.1')
+  const [mde, setMde] = useState('0.05')
   const [alpha, setAlpha] = useState('0.05')
   const [power, setPower] = useState('0.8')
-  const [dailyTraffic, setDailyTraffic] = useState('')
+  const [dailyTraffic, setDailyTraffic] = useState('1000')
 
   const [loading, setLoading] = useState(false)
   const [result, setResult] = useState<ExperimentDesignResponse | null>(null)
@@ -48,7 +48,7 @@ export default function ExperimentDesignPage() {
   return (
     <div className="min-h-screen bg-[#0B0F19] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-purple-900/40 via-[#0B0F19] to-[#0B0F19]">
       {/* Top Nav / Breadcrumbs */}
-      <div className="border-b border-white/5 bg-[#0B0F19]/80 backdrop-blur-md sticky top-0 z-50">
+      <div className="border-b border-white/10 bg-[#0B0F19]/80 backdrop-blur-md sticky top-0 z-50">
         <div className="max-w-[1600px] mx-auto px-4 h-16 flex items-center justify-between">
           <div className="flex items-center gap-4">
             <Link href="/" className="text-slate-400 hover:text-white transition-colors flex items-center gap-2 group">

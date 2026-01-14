@@ -243,7 +243,7 @@ export default function AgentPage() {
       `}</style>
       <div className="fixed inset-0 lg:top-16 overflow-hidden bg-[#0B0F19] bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-fuchsia-900/40 via-[#0B0F19] to-[#0B0F19] flex flex-col z-30">
         {/* Top Nav / Breadcrumbs - matching Experiment Design */}
-        <div className="border-b border-white/5 bg-[#0B0F19]/80 backdrop-blur-md flex-shrink-0 z-50">
+        <div className="border-b border-white/10 bg-[#0B0F19]/80 backdrop-blur-md flex-shrink-0 z-50">
           <div className="max-w-[1600px] mx-auto px-4 h-16 flex items-center justify-between w-full">
             <div className="flex items-center gap-4">
               <Link href="/" className="text-slate-400 hover:text-white transition-colors flex items-center gap-2 group">
