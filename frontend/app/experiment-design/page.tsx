@@ -8,7 +8,7 @@ import ExperimentOutput from '@/components/ExperimentOutput'
 export default function ExperimentDesignPage() {
   const [description, setDescription] = useState('')
   const [baselineRate, setBaselineRate] = useState('0.1')
-  const [mde, setMde] = useState('0.05')
+  const [mde, setMde] = useState('5')
   const [alpha, setAlpha] = useState('0.05')
   const [power, setPower] = useState('0.8')
   const [dailyTraffic, setDailyTraffic] = useState('1000')
@@ -27,7 +27,7 @@ export default function ExperimentDesignPage() {
     const request: ExperimentDesignRequest = {
       description,
       baseline_rate: baselineRate ? parseFloat(baselineRate) : undefined,
-      minimum_detectable_effect: mde ? parseFloat(mde) : undefined,
+      minimum_detectable_effect: mde ? parseFloat(mde) / 100 : undefined,
       alpha: alpha ? parseFloat(alpha) : 0.05,
       power: power ? parseFloat(power) : 0.8,
       expected_daily_traffic: dailyTraffic ? parseInt(dailyTraffic) : undefined,
@@ -123,13 +123,13 @@ export default function ExperimentDesignPage() {
                     />
                   </div>
                   <div className="bg-[#0B0F19] p-3 rounded-lg border border-purple-500/10 group hover:border-purple-500/30 transition-colors">
-                    <span className="text-[10px] text-purple-400/80 uppercase block mb-1 font-semibold">MDE</span>
+                    <span className="text-[10px] text-purple-400/80 uppercase block mb-1 font-semibold">MDE (%)</span>
                     <input
                       type="number"
                       value={mde}
                       onChange={(e) => setMde(e.target.value)}
-                      placeholder="0.05"
-                      step="0.01"
+                      placeholder="5"
+                      step="any"
                       className="w-full bg-transparent border-none p-0 text-white font-mono focus:ring-0 text-sm"
                     />
                   </div>

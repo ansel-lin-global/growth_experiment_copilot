@@ -44,7 +44,7 @@ def test_calculate_proportion_difference():
     n1, x1 = 1000, 100  # 10% conversion
     n2, x2 = 1000, 120  # 12% conversion
     
-    abs_diff, rel_uplift, (ci_lower, ci_upper), p_value = calculate_proportion_difference(
+    abs_diff, rel_uplift, (ci_lower, ci_upper), p_value, warnings = calculate_proportion_difference(
         n1=n1, x1=x1, n2=n2, x2=x2, alpha=0.05
     )
     
@@ -55,12 +55,13 @@ def test_calculate_proportion_difference():
     # CI bounds should be reasonable (the CI calculation method may have numerical precision issues)
     # The key is that we have valid bounds and a correct p-value
     assert ci_lower < 0.1 and ci_upper > -0.1  # CI should be in reasonable range
+    assert isinstance(warnings, list)
     
     # Test with no difference
     n1, x1 = 1000, 100
     n2, x2 = 1000, 100
     
-    abs_diff, rel_uplift, (ci_lower, ci_upper), p_value = calculate_proportion_difference(
+    abs_diff, rel_uplift, (ci_lower, ci_upper), p_value, warnings = calculate_proportion_difference(
         n1=n1, x1=x1, n2=n2, x2=x2, alpha=0.05
     )
     
@@ -116,3 +117,54 @@ def test_estimate_experiment_duration():
     
     assert duration_frac == 14  # 2000 / 150 = 13.33, rounded up to 14
 
+
+def test_check_sample_ratio_mismatch():
+    """Test SRM detection using chi-square test."""
+    from app.services.stats_calculator import check_sample_ratio_mismatch
+    
+    # Test case: No SRM - balanced split
+    observed_counts = [500, 500]
+    expected_ratios = [0.5, 0.5]
+    
+    has_srm, p_value, message = check_sample_ratio_mismatch(
+        observed_counts=observed_counts,
+        expected_ratios=expected_ratios
+    )
+    
+    assert has_srm == False
+    assert p_value > 0.01  # Should not be significant
+    assert message == ""
+    
+    # Test case: Clear SRM - very imbalanced split
+    observed_counts = [600, 400]
+    expected_ratios = [0.5, 0.5]
+    
+    has_srm, p_value, message = check_sample_ratio_mismatch(
+        observed_counts=observed_counts,
+        expected_ratios=expected_ratios
+    )
+    
+    assert has_srm == True
+    assert p_value < 0.01  # Should be significant
+    assert "SRM" in message or "allocation" in message
+    
+    # Test case: Correct allocation for non-50/50 split
+    observed_counts = [700, 300]
+    expected_ratios = [0.7, 0.3]
+    
+    has_srm, p_value, message = check_sample_ratio_mismatch(
+        observed_counts=observed_counts,
+        expected_ratios=expected_ratios
+    )
+    
+    assert has_srm == False
+    assert message == ""
+    
+    # Test case: Default to equal allocation if not specified
+    observed_counts = [500, 500]
+    
+    has_srm, p_value, message = check_sample_ratio_mismatch(
+        observed_counts=observed_counts
+    )
+    
+    assert has_srm == False

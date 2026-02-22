@@ -1,184 +1,169 @@
 # Growth Experiment Copilot
 
-AI-powered experiment design and A/B test analysis for product managers and marketers.
+> **Decisions Engineered by Causality.**
 
-## ✨ What's New: Agent Chat
+An AI-powered copilot for Product Managers and Marketing teams to design, analyze, and interpret growth experiments with statistical rigor. Turn experiment ideas into structured blueprints and raw results into actionable insights — all through natural language.
 
-The **Agent Chat** (`/agent`) is now the main entry point! Simply describe your needs in natural language, and the AI agent will:
-
-1. **設計實驗 (Experiment Design)** - Describe your experiment idea, get sample size calculations and design recommendations
-2. **分析 A/B 測試 (A/B Test Analysis)** - Provide your test results, get statistical analysis and launch recommendations  
-3. **因果分析 (Causal/DiD Analysis)** - Analyze non-randomized experiments with Difference-in-Differences
-
-### Example Queries
-
-```
-"我想設計一個首頁推薦位的 A/B 測試"
-"幫我分析這個 AB test：control 有 1000 用戶 50 轉換，treatment 有 1000 用戶 65 轉換"
-"雙十一 EDM 的 treatment group 好像沒什麼 uplift，想做 DiD 分析"
-```
-
-## Project Structure
-
-```
-growth-experiment-copilot/
-├── backend/          # FastAPI backend
-│   ├── app/
-│   │   ├── api/      # API endpoints (including agent-chat)
-│   │   ├── core/     # Configuration
-│   │   ├── models/   # Pydantic models
-│   │   ├── services/ # Business logic (including agent_orchestrator)
-│   │   └── tests/    # Unit tests
-│   └── requirements.txt
-└── frontend/         # Next.js frontend
-    ├── app/          # Next.js app router pages
-    │   ├── agent/    # Agent Chat page (main entry)
-    │   ├── analysis/ # Results Analysis page
-    │   └── experiment-design/ # Experiment Design page
-    ├── components/   # React components
-    └── lib/          # Utilities and API client
-```
-
-## Quick Start
-
-1. Start the backend:
-```bash
-cd backend
-source venv/bin/activate  # If using virtual environment
-export OPENAI_API_KEY=your_api_key_here
-uvicorn app.main:app --reload --port 8000
-```
-
-2. Start the frontend:
-```bash
-cd frontend
-npm run dev
-```
-
-3. Open http://localhost:3000/agent to start chatting with the Growth Experiment Agent!
-
-## Setup
-
-### Backend
-
-1. Navigate to the backend directory:
-```bash
-cd backend
-```
-
-2. Create a virtual environment (recommended):
-```bash
-python -m venv venv
-source venv/bin/activate  # On Windows: venv\Scripts\activate
-```
-
-3. Install dependencies:
-```bash
-pip install -r requirements.txt
-```
-
-4. Set environment variables:
-```bash
-export OPENAI_API_KEY=your_api_key_here
-```
-
-5. Run the FastAPI server:
-```bash
-uvicorn app.main:app --reload --port 8000
-```
-
-The API will be available at `http://localhost:8000`
-
-### Frontend
-
-1. Navigate to the frontend directory:
-```bash
-cd frontend
-```
-
-2. Install dependencies:
-```bash
-npm install
-```
-
-3. Set environment variable (optional, defaults to localhost:8000):
-```bash
-export NEXT_PUBLIC_API_URL=http://localhost:8000
-```
-
-4. Run the development server:
-```bash
-npm run dev
-```
-
-The frontend will be available at `http://localhost:3000`
+---
 
 ## Features
 
-### Experiment Design Copilot
-- Natural language experiment description
-- Automatic sample size calculation
-- Hypothesis formulation
-- Design recommendations
+### 🤖 Agent Chat
 
-### Results Analysis Copilot
-- A/B test analysis with statistical tests
-- Difference-in-Differences (DiD) causal analysis
-- Uplift modeling (basic MVP)
-- AI-generated insights and recommendations
+Conversational AI agent that understands your intent and routes to the right tool automatically.
 
-## API Endpoints
+- Describe an experiment idea → generates a full design blueprint
+- Paste A/B test numbers → returns statistical analysis with launch recommendation
+- Ask about a causal question → runs Difference-in-Differences analysis
+- Supports bilingual conversation (English / Traditional Chinese)
 
-- `POST /api/agent-chat` - **[NEW]** Chat with the Growth Experiment Agent
-- `POST /api/experiment-design` - Design an experiment
-- `POST /api/analyze-ab-test` - Analyze A/B test results
-- `POST /api/analyze-causal` - Perform causal analysis (DiD or uplift)
+### 🧪 Experiment Design
 
-### Agent Chat API
+Structured experiment planning with automatic sample size calculation.
+
+- **Hypothesis formulation** — H0/H1 with one-sided or two-sided detection
+- **Sample size & duration** — powered by baseline rate, MDE, alpha, and power inputs
+- **Design blueprint** — goal, metrics, variants, randomization unit, traffic allocation
+- **AI rationale** — decision rule, feasibility assessment, and risk analysis
+
+### 📊 Results Analysis
+
+Statistical analysis engine for A/B tests and causal inference.
+
+**A/B Test Analysis**
+- Proportion tests (CTR, CVR) and revenue metrics (RPU)
+- Confidence intervals, p-values, and relative uplift
+- Sample Ratio Mismatch (SRM) detection
+- Multi-metric trade-off notes (CVR vs AOV vs RPU)
+
+**Difference-in-Differences (DiD)**
+- Supports both proportion (rate) and mean (numeric) metrics
+- Proper unit handling: pp for proportions, raw units for means
+- Statistical guardrails: no fabricated CI/p-value when variance is unavailable
+- Parallel trends status and assumption checks
+
+**AI Report Generation**
+- 5-section professional report: Summary → Interpretation → Recommendation → Risks → Next Checks
+- Guardrails against hallucinated statistics
+- Copy-to-clipboard for easy sharing
+
+---
+
+## Architecture
+
+```
+growth-experiment-copilot/
+├── backend/                    # FastAPI (Python 3.10+)
+│   ├── app/
+│   │   ├── api/
+│   │   │   ├── chat_agent.py           # POST /api/agent-chat
+│   │   │   ├── experiment_design.py    # POST /api/experiment-design
+│   │   │   ├── analysis_ab_test.py     # POST /api/analyze-ab-test
+│   │   │   └── analysis_causal.py      # POST /api/analyze-causal
+│   │   ├── services/
+│   │   │   ├── agent_orchestrator.py   # Intent detection + tool routing
+│   │   │   ├── agent_experiment_design.py  # Design blueprint generation
+│   │   │   ├── agent_report_writer.py  # LLM report writer (A/B + DiD)
+│   │   │   ├── stats_calculator.py     # Statistical tests (z-test, SRM)
+│   │   │   └── causal_analyzer.py      # DiD estimator + uplift modeling
+│   │   ├── models/                     # Pydantic request/response schemas
+│   │   └── core/config.py             # Settings + env vars
+│   └── requirements.txt
+│
+└── frontend/                   # Next.js 14 (App Router, TypeScript)
+    ├── app/
+    │   ├── page.tsx                    # Landing page
+    │   ├── agent/page.tsx              # Agent Chat interface
+    │   ├── experiment-design/page.tsx  # Experiment Design form
+    │   └── analysis/page.tsx           # A/B Test + DiD analysis
+    ├── components/                     # Shared UI components
+    └── lib/api.ts                      # Backend API client
+```
+
+---
+
+## Quick Start
+
+### Prerequisites
+
+- Python 3.10+
+- Node.js 18+
+- OpenAI API key
+
+### 1. Backend
 
 ```bash
-curl -X POST http://localhost:8000/api/agent-chat \
-  -H "Content-Type: application/json" \
-  -d '{
-    "messages": [
-      {"role": "user", "content": "我想設計一個首頁推薦位的 A/B 測試"}
-    ]
-  }'
+cd backend
+python -m venv .venv
+source .venv/bin/activate
+
+pip install -r requirements.txt
+
+# Configure environment
+cp .env.example .env
+# Edit .env → set OPENAI_API_KEY=sk-...
+
+uvicorn app.main:app --reload --port 8000
 ```
 
-Response:
-```json
-{
-  "reply": "...(Agent response in Traditional Chinese)...",
-  "detected_intent": "experiment_design|ab_test_analysis|causal_analysis|clarification_needed|general_conversation",
-  "extra": { "tool_used": "...", ... }
-}
+API available at `http://localhost:8000`
+
+### 2. Frontend
+
+```bash
+cd frontend
+npm install
+npm run dev
 ```
+
+App available at `http://localhost:3000`
+
+---
+
+## Environment Variables
+
+| Variable | Default | Description |
+|---|---|---|
+| `OPENAI_API_KEY` | *(required)* | OpenAI API key |
+| `LLM_MODEL` | `gpt-4o-mini` | Model for LLM calls |
+| `LLM_TEMPERATURE` | `0.3` | LLM temperature |
+| `FRONTEND_URL` | `http://localhost:3000` | CORS allowed origin |
+| `NEXT_PUBLIC_API_URL` | `http://localhost:8000` | Backend URL (frontend) |
+
+---
+
+## API Reference
+
+| Method | Endpoint | Description |
+|---|---|---|
+| `POST` | `/api/agent-chat` | Chat with the AI agent (auto-routes to tools) |
+| `POST` | `/api/experiment-design` | Generate experiment blueprint + sample size |
+| `POST` | `/api/analyze-ab-test` | Analyze A/B test with statistical tests |
+| `POST` | `/api/analyze-causal` | Run DiD or uplift causal analysis |
+| `GET` | `/health` | Health check |
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| **Backend** | FastAPI · Pydantic v2 · LangChain · OpenAI |
+| **Statistics** | SciPy · statsmodels · NumPy · pandas · scikit-learn |
+| **Frontend** | Next.js 14 · TypeScript · Tailwind CSS · React Markdown |
+| **Deployment** | Render (backend) · Vercel (frontend) |
+
+---
 
 ## Testing
 
-Run backend tests:
 ```bash
 cd backend
 pytest
 ```
 
-## Tech Stack
-
-**Backend:**
-- FastAPI
-- LangChain (OpenAI)
-- scipy, statsmodels (statistics)
-- pandas, numpy (data processing)
-
-**Frontend:**
-- Next.js 14 (App Router)
-- TypeScript
-- Tailwind CSS
-- React Markdown
+---
 
 ## License
 
 MIT
-
-

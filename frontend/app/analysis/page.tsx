@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { analyzeABTest, analyzeCausal, ABTestAnalysisRequest, ABTestAnalysisResponse } from '@/lib/api'
 import ReactMarkdown from 'react-markdown'
 import Link from 'next/link'
+import CopyButton from '@/components/CopyButton'
 
 type AnalysisMode = 'ab' | 'did' | 'uplift'
 
@@ -15,6 +16,7 @@ export default function AnalysisPage() {
 
   // A/B Test State
   const [metricType, setMetricType] = useState<string>('cvr')
+  const [expectedAllocation, setExpectedAllocation] = useState<string>('50/50')
   const [control, setControl] = useState({ name: 'control', users: 1000, clicks: 100, orders: 50, revenue: 5000 })
   const [treatment, setTreatment] = useState({ name: 'treatment', users: 1000, clicks: 120, orders: 65, revenue: 6000 })
 
@@ -34,9 +36,17 @@ export default function AnalysisPage() {
     setResult(null)
 
     try {
+      // Convert allocation string to ratios array
+      const allocationRatios = expectedAllocation === '50/50' ? [0.5, 0.5]
+        : expectedAllocation === '60/40' ? [0.6, 0.4]
+          : expectedAllocation === '70/30' ? [0.7, 0.3]
+            : expectedAllocation === '80/20' ? [0.8, 0.2]
+              : [0.5, 0.5] // default
+
       const request: ABTestAnalysisRequest = {
         overall_metric_type: metricType as any,
-        variants: [control, treatment]
+        variants: [control, treatment],
+        expected_allocation: allocationRatios
       }
 
       const response = await analyzeABTest(request)
@@ -117,7 +127,7 @@ export default function AnalysisPage() {
         {/* Mode Tabs */}
         <div className="flex items-center gap-4">
           <button
-            onClick={() => setMode('ab')}
+            onClick={() => { setMode('ab'); setResult(null); setError(null) }}
             className={`px-6 py-3 rounded-lg font-medium transition-all ${mode === 'ab'
               ? 'bg-rose-600 text-white shadow-rose-glow'
               : 'bg-white/5 text-slate-400 hover:bg-white/10 border border-white/5 hover:border-white/10'
@@ -126,7 +136,7 @@ export default function AnalysisPage() {
             A/B Test Analysis
           </button>
           <button
-            onClick={() => setMode('did')}
+            onClick={() => { setMode('did'); setResult(null); setError(null) }}
             className={`px-6 py-3 rounded-lg font-medium transition-all ${mode === 'did'
               ? 'bg-rose-600 text-white shadow-rose-glow'
               : 'bg-white/5 text-slate-400 hover:bg-white/10 border border-white/5 hover:border-white/10'
@@ -135,7 +145,7 @@ export default function AnalysisPage() {
             Causal Mode (DiD)
           </button>
           <button
-            onClick={() => setMode('uplift')}
+            onClick={() => { setMode('uplift'); setResult(null); setError(null) }}
             className={`px-6 py-3 rounded-lg font-medium transition-all ${mode === 'uplift'
               ? 'bg-rose-600 text-white shadow-rose-glow'
               : 'bg-white/5 text-slate-400 hover:bg-white/10 border border-white/5 hover:border-white/10'
@@ -169,6 +179,22 @@ export default function AnalysisPage() {
                         <option value="cvr" className="bg-[#0B0F19]">CVR (Conversion Rate)</option>
                         <option value="ctr" className="bg-[#0B0F19]">CTR (Click-Through Rate)</option>
                         <option value="revenue_per_user" className="bg-[#0B0F19]">Revenue Per User</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div>
+                    <div className="bg-[#0B0F19] p-3 rounded-lg border border-rose-500/10 group hover:border-rose-500/30 transition-colors">
+                      <span className="text-[10px] text-rose-400/80 uppercase block mb-1 font-semibold">Expected Allocation (for SRM check)</span>
+                      <select
+                        value={expectedAllocation}
+                        onChange={(e) => setExpectedAllocation(e.target.value)}
+                        className="w-full bg-transparent border-none p-0 text-white font-mono focus:ring-0 text-sm outline-none"
+                      >
+                        <option value="50/50" className="bg-[#0B0F19]">50/50 (Equal)</option>
+                        <option value="60/40" className="bg-[#0B0F19]">60/40</option>
+                        <option value="70/30" className="bg-[#0B0F19]">70/30</option>
+                        <option value="80/20" className="bg-[#0B0F19]">80/20</option>
                       </select>
                     </div>
                   </div>
@@ -458,31 +484,52 @@ export default function AnalysisPage() {
               </div>
             ) : (
               <div className="animate-fade-in space-y-6">
-                {/* Results Display - Keeping the same good results display as before, just ensuring it fits the new layout if needed */}
-                <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
-                  <div className="bg-[#0B0F19] p-4 rounded-xl border-l-2 border-l-rose-500 border-r border-t border-b border-rose-500/10">
-                    <span className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Primary Metric</span>
-                    <span className="text-xl font-bold text-white font-mono uppercase">{result.structured_results.primary_metric}</span>
-                  </div>
-                  {result.structured_results.comparisons[0] && (
-                    <div className="bg-[#0B0F19] p-4 rounded-xl border-l-2 border-l-amber-500 border-r border-t border-b border-rose-500/10">
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Calculated Uplift</span>
-                      <span className={`text-xl font-bold font-mono-num ${result.structured_results.comparisons[0].relative_uplift_percent > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
-                        {result.structured_results.comparisons[0].relative_uplift_percent > 0 ? '+' : ''}
-                        {result.structured_results.comparisons[0].relative_uplift_percent.toFixed(2)}%
-                      </span>
+                {/* A/B Test Summary Cards - only shown for A/B results */}
+                {result.structured_results && (
+                  <>
+                    <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                      <div className="bg-[#0B0F19] p-4 rounded-xl border-l-2 border-l-rose-500 border-r border-t border-b border-rose-500/10">
+                        <span className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Primary Metric</span>
+                        <span className="text-xl font-bold text-white font-mono uppercase">{result.structured_results.primary_metric}</span>
+                      </div>
+                      {result.structured_results.comparisons?.[0] && (
+                        <div className="bg-[#0B0F19] p-4 rounded-xl border-l-2 border-l-amber-500 border-r border-t border-b border-rose-500/10">
+                          <span className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Calculated Uplift</span>
+                          <span className={`text-xl font-bold font-mono-num ${result.structured_results.comparisons[0].relative_uplift_percent > 0 ? 'text-emerald-400' : 'text-rose-400'}`}>
+                            {result.structured_results.comparisons[0].relative_uplift_percent > 0 ? '+' : ''}
+                            {result.structured_results.comparisons[0].relative_uplift_percent.toFixed(2)}%
+                          </span>
+                        </div>
+                      )}
+                      {result.structured_results.comparisons?.[0] && (
+                        <div className="bg-[#0B0F19] p-4 rounded-xl border-l-2 border-l-rose-500 border-r border-t border-b border-rose-500/10">
+                          <span className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Stat Sig (P-Value)</span>
+                          <span className="text-xl font-bold text-white font-mono-num">
+                            {result.structured_results.comparisons[0].p_value.toFixed(4)}
+                          </span>
+                        </div>
+                      )}
                     </div>
-                  )}
-                  {result.structured_results.comparisons[0] && (
-                    <div className="bg-[#0B0F19] p-4 rounded-xl border-l-2 border-l-rose-500 border-r border-t border-b border-rose-500/10">
-                      <span className="text-[10px] text-slate-500 uppercase tracking-wider block mb-1">Stat Sig (P-Value)</span>
-                      <span className="text-xl font-bold text-white font-mono-num">
-                        {result.structured_results.comparisons[0].p_value.toFixed(4)}
-                      </span>
-                    </div>
-                  )}
-                </div>
 
+                    {/* SRM Warning Banner */}
+                    {result.structured_results.has_srm && (
+                      <div className="bg-amber-500/10 border border-amber-500/30 rounded-xl p-4 flex items-start gap-3">
+                        <svg className="w-6 h-6 text-amber-400 flex-shrink-0 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                        </svg>
+                        <div>
+                          <h4 className="text-amber-400 font-bold text-sm uppercase tracking-wider mb-1">⚠️ Sample Ratio Mismatch Detected</h4>
+                          <p className="text-amber-200/80 text-sm">
+                            The observed traffic split significantly deviates from the expected allocation
+                            {result.structured_results.srm_p_value && ` (p = ${result.structured_results.srm_p_value.toFixed(4)})`}.
+                            This may indicate issues with randomization, data collection, or bot traffic.
+                            <span className="font-semibold"> Interpret statistical results with caution.</span>
+                          </p>
+                        </div>
+                      </div>
+                    )}
+                  </>
+                )}
                 <div className="surface-card rounded-xl border border-rose-500/20 p-8 shadow-[0_0_30px_rgba(244,63,94,0.1)]">
                   <div className="flex items-center justify-between mb-8 border-b border-rose-500/10 pb-6">
                     <h2 className="text-lg font-bold text-white flex items-center gap-3">
@@ -491,6 +538,7 @@ export default function AnalysisPage() {
                       </svg>
                       AI Analysis Report
                     </h2>
+                    <CopyButton text={result.llm_report_markdown} className="hover:text-rose-400" />
                   </div>
                   <div className="prose prose-invert max-w-none prose-p:text-slate-300 prose-headings:text-white prose-li:text-slate-300 prose-strong:text-white prose-sm">
                     <ReactMarkdown>{result.llm_report_markdown}</ReactMarkdown>

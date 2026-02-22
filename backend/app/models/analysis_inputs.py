@@ -18,6 +18,10 @@ class ABTestAnalysisRequest(BaseModel):
     overall_metric_type: Literal["ctr", "cvr", "revenue_per_user", "custom"] = Field(
         ..., description="Primary metric type"
     )
+    expected_allocation: Optional[List[float]] = Field(
+        None,
+        description="Expected traffic allocation ratios (e.g., [0.5, 0.5] for 50/50). Defaults to equal allocation."
+    )
 
 
 class DiDDataPoint(BaseModel):

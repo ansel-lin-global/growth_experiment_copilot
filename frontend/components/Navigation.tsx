@@ -16,7 +16,7 @@ export default function Navigation() {
 
   return (
     <nav className="glass border-b border-neon-purple/30 backdrop-blur-xl relative z-20">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+      <div className="max-w-[1600px] mx-auto px-4 sm:px-6 lg:px-6">
         <div className="flex justify-between h-16">
           <div className="flex">
             <div className="flex-shrink-0 flex items-center">

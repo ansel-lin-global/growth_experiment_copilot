@@ -43,6 +43,7 @@ export interface VariantData {
 export interface ABTestAnalysisRequest {
   variants: VariantData[]
   overall_metric_type: 'ctr' | 'cvr' | 'revenue_per_user' | 'custom'
+  expected_allocation?: number[]  // Expected traffic allocation ratios, e.g., [0.5, 0.5]
 }
 
 export interface ABTestAnalysisResponse {
@@ -50,6 +51,8 @@ export interface ABTestAnalysisResponse {
     variants: any[]
     comparisons: any[]
     primary_metric: string
+    has_srm?: boolean
+    srm_p_value?: number
   }
   llm_report_markdown: string
   warnings: string[]

@@ -4,6 +4,7 @@ import { useState, useRef, useEffect, useCallback } from 'react'
 import { sendAgentChat, ChatMessage, AgentChatResponse } from '@/lib/api'
 import ReactMarkdown from 'react-markdown'
 import Link from 'next/link'
+import CopyButton from '@/components/CopyButton'
 
 // Intent display names and colors - using fuchsia accent
 const intentDisplay: Record<string, { label: string; color: string; bgColor: string }> = {
@@ -58,8 +59,18 @@ export default function AgentPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [editingSessionId, setEditingSessionId] = useState<string | null>(null)
+  const [editingTitle, setEditingTitle] = useState('')
   const messagesEndRef = useRef<HTMLDivElement>(null)
   const inputRef = useRef<HTMLTextAreaElement>(null)
+  const editInputRef = useRef<HTMLInputElement>(null)
+
+  const resizeInput = useCallback(() => {
+    const el = inputRef.current
+    if (!el) return
+    el.style.height = 'auto'
+    el.style.height = Math.min(el.scrollHeight, 120) + 'px'
+  }, [])
 
   // Load sessions from localStorage
   useEffect(() => {
@@ -98,6 +109,11 @@ export default function AgentPage() {
     inputRef.current?.focus({ preventScroll: true })
   }, [activeSessionId])
 
+  // Keep textarea height synced when value changes programmatically
+  useEffect(() => {
+    resizeInput()
+  }, [input, resizeInput])
+
   const activeSession = sessions.find(s => s.id === activeSessionId)
   const messages = activeSession?.messages || []
 
@@ -135,6 +151,27 @@ export default function AgentPage() {
       return filtered
     })
   }, [activeSessionId])
+
+  const startEditing = useCallback((sessionId: string, currentTitle: string) => {
+    setEditingSessionId(sessionId)
+    setEditingTitle(currentTitle)
+    setTimeout(() => editInputRef.current?.focus(), 0)
+  }, [])
+
+  const saveEditing = useCallback(() => {
+    if (editingSessionId && editingTitle.trim()) {
+      setSessions(prev => prev.map(s =>
+        s.id === editingSessionId ? { ...s, title: editingTitle.trim() } : s
+      ))
+    }
+    setEditingSessionId(null)
+    setEditingTitle('')
+  }, [editingSessionId, editingTitle])
+
+  const cancelEditing = useCallback(() => {
+    setEditingSessionId(null)
+    setEditingTitle('')
+  }, [])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -275,7 +312,7 @@ export default function AgentPage() {
           </div>
         </div>
 
-        <div className="max-w-[1600px] mx-auto p-6 grid lg:grid-cols-12 gap-6 flex-1 min-h-0 overflow-hidden w-full">
+        <div className="max-w-[1600px] mx-auto p-6 grid lg:grid-cols-12 lg:grid-rows-[minmax(0,1fr)] gap-6 flex-1 min-h-0 overflow-hidden w-full">
           {/* Left Column: Chat History Sidebar */}
           {/* Mobile Sidebar Backdrop */}
           {sidebarOpen && (
@@ -291,7 +328,7 @@ export default function AgentPage() {
             lg:static lg:block lg:col-span-3 lg:w-auto lg:inset-auto lg:translate-x-0
             ${sidebarOpen ? 'translate-x-0' : '-translate-x-full'}
           `}>
-            <div className="surface-card rounded-xl border border-fuchsia-500/20 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)] h-full flex flex-col">
+            <div className="surface-card rounded-xl border border-fuchsia-500/20 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)] h-full flex flex-col min-h-0">
               <div className="px-6 py-4 border-b border-fuchsia-500/10 bg-white/[0.02] flex justify-between items-center">
                 <h2 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
                   <svg className="w-5 h-5 text-fuchsia-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -329,18 +366,54 @@ export default function AgentPage() {
                         ? 'bg-fuchsia-500/15 border border-fuchsia-500/40'
                         : 'hover:bg-slate-800/50 border border-transparent hover:border-fuchsia-500/20'
                         }`}
-                      onClick={() => setActiveSessionId(session.id)}
+                      onClick={() => {
+                        if (editingSessionId !== session.id) {
+                          setActiveSessionId(session.id)
+                        }
+                      }}
                     >
                       <svg className="w-4 h-4 text-fuchsia-400/60 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z" />
                       </svg>
-                      <span className="flex-1 text-sm text-gray-300 truncate">{session.title}</span>
+                      {editingSessionId === session.id ? (
+                        <input
+                          ref={editInputRef}
+                          type="text"
+                          value={editingTitle}
+                          onChange={(e) => setEditingTitle(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') { e.preventDefault(); saveEditing() }
+                            if (e.key === 'Escape') cancelEditing()
+                          }}
+                          onBlur={saveEditing}
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex-1 text-sm text-white bg-slate-800 border border-fuchsia-500/50 rounded px-2 py-0.5 outline-none focus:border-fuchsia-400 min-w-0"
+                        />
+                      ) : (
+                        <span className="flex-1 text-sm text-gray-300 truncate">{session.title}</span>
+                      )}
+                      {editingSessionId !== session.id && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            startEditing(session.id, session.title)
+                          }}
+                          className="opacity-0 group-hover:opacity-100 p-1 hover:bg-fuchsia-500/20 rounded transition-all duration-200"
+                          title="Rename chat"
+                        >
+                          <svg className="w-3.5 h-3.5 text-gray-400 hover:text-fuchsia-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                          </svg>
+                        </button>
+                      )}
                       <button
                         onClick={(e) => {
                           e.stopPropagation()
+                          if (editingSessionId === session.id) cancelEditing()
                           deleteSession(session.id)
                         }}
                         className="opacity-0 group-hover:opacity-100 p-1 hover:bg-red-500/20 rounded transition-all duration-200"
+                        title="Delete chat"
                       >
                         <svg className="w-4 h-4 text-gray-400 hover:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
@@ -354,7 +427,7 @@ export default function AgentPage() {
           </div>
 
           {/* Right Column: Chat Interface */}
-          <div className="lg:col-span-9 h-full flex flex-col overflow-hidden">
+          <div className="lg:col-span-9 h-full flex flex-col overflow-hidden min-h-0">
             <div className="surface-card rounded-xl border border-fuchsia-500/20 overflow-hidden shadow-[0_0_30px_rgba(0,0,0,0.3)] flex-1 flex flex-col min-h-0">
               {/* Chat Header */}
               <div className="px-6 py-4 border-b border-fuchsia-500/10 bg-white/[0.02] flex justify-between items-center">
@@ -398,9 +471,9 @@ export default function AgentPage() {
                     </p>
                     <div className="grid gap-2 max-w-lg w-full">
                       {[
-                        'Design an A/B test for homepage recommendations',
+                        'Design an A/B test for homepage recommendations, assuming a baseline conversion rate of 3%, a minimum detectable effect (MDE) of 20%, and expected daily traffic of 50,000 users',
                         'Analyze: control 1000 users, 50 conversions; treatment 1000, 65 conversions',
-                        'Run a DiD analysis for Black Friday email campaign',
+                        'Run a DiD analysis for the Black Friday email campaign assuming 50,000 users per group, where the treatment group’s conversion rate increased from 4.0% pre to 7.5% post and the control group’s conversion rate increased from 4.2% pre to 5.0% post.',
                       ].map((example, idx) => (
                         <button
                           key={idx}
@@ -425,7 +498,7 @@ export default function AgentPage() {
                           : 'w-full bg-transparent border-0 pl-0'
                           }`}
                       >
-                        {message.role === 'assistant' && message.intent && (
+                        {message.role === 'assistant' && message.intent && !message.content.trim().startsWith('#') && (
                           <div className="mb-2">
                             <span
                               className={`inline-flex items-center px-2 py-0.5 text-xs font-medium rounded border ${intentDisplay[message.intent]?.bgColor || 'bg-gray-500/20 border-gray-500/50'
@@ -450,17 +523,11 @@ export default function AgentPage() {
                                   h2: ({ children }) => (
                                     <h2 className="text-lg font-bold text-white mb-3 mt-4 first:mt-0">{children}</h2>
                                   ),
-                                  h3: ({ children }) => (
-                                    <h3 className="text-base font-semibold text-fuchsia-400 mb-2 mt-3">{children}</h3>
-                                  ),
                                   ul: ({ children }) => (
-                                    <ul className="list-none space-y-1.5 mb-3">{children}</ul>
+                                    <ul className="list-disc pl-4 space-y-1 mb-3 marker:text-fuchsia-400">{children}</ul>
                                   ),
                                   li: ({ children }) => (
-                                    <li className="flex items-start">
-                                      <span className="text-fuchsia-400 mr-2 flex-shrink-0">▸</span>
-                                      <span>{children}</span>
-                                    </li>
+                                    <li className="pl-1">{children}</li>
                                   ),
                                   code: ({ children }) => (
                                     <code className="bg-slate-900 px-1.5 py-0.5 rounded text-fuchsia-300 text-xs">
@@ -481,11 +548,16 @@ export default function AgentPage() {
                           )}
                         </div>
 
-                        <div className={`mt-2 text-xs ${message.role === 'user' ? 'text-fuchsia-400/70' : 'text-gray-500'}`}>
-                          {message.timestamp.toLocaleTimeString('en-US', {
-                            hour: '2-digit',
-                            minute: '2-digit',
-                          })}
+                        <div className={`mt-2 flex items-center gap-3 text-xs ${message.role === 'user' ? 'text-fuchsia-400/70' : 'text-gray-500'}`}>
+                          <span>
+                            {message.timestamp.toLocaleTimeString('en-US', {
+                              hour: '2-digit',
+                              minute: '2-digit',
+                            })}
+                          </span>
+                          {message.role === 'assistant' && (
+                            <CopyButton text={message.content} />
+                          )}
                         </div>
                       </div>
                     </div>
@@ -531,12 +603,8 @@ export default function AgentPage() {
                       placeholder="Describe your experiment or analysis needs..."
                       rows={1}
                       className="block w-full px-4 py-3 pr-10 lg:pr-24 bg-[#0B0F19] border border-fuchsia-500/30 rounded-lg text-sm text-slate-200 placeholder:!text-gray-500 placeholder:!opacity-40 focus:border-fuchsia-500 focus:ring-1 focus:ring-fuchsia-500 transition-all resize-none min-h-[48px] max-h-[120px]"
-                      style={{ height: 'auto' }}
-                      onInput={(e) => {
-                        const target = e.target as HTMLTextAreaElement
-                        target.style.height = 'auto'
-                        target.style.height = Math.min(target.scrollHeight, 120) + 'px'
-                      }}
+                      style={{ height: '48px' }}
+                      onInput={resizeInput}
                     />
                     <div className="hidden lg:block absolute right-3 bottom-3 text-xs text-gray-600">
                       Enter to send

@@ -12,7 +12,8 @@ class VariantResult(BaseModel):
     revenue: Optional[float] = None
     ctr: Optional[float] = None
     cvr: Optional[float] = None
-    arpu: Optional[float] = None
+    arpu: Optional[float] = None  # Revenue per user
+    aov: Optional[float] = None   # Average order value (revenue / orders)
 
 
 class ComparisonResult(BaseModel):
@@ -44,9 +45,10 @@ class DiDResult(BaseModel):
     pre_difference: float
     post_difference: float
     did_estimate: float
-    ci_lower: float
-    ci_upper: float
+    ci_lower: Optional[float] = None
+    ci_upper: Optional[float] = None
     p_value: Optional[float] = None
+    metric_type: str = "proportion"
 
 
 class CausalDiDResponse(BaseModel):

@@ -144,7 +144,7 @@ Provide the experiment design in JSON format.""")
         
         # Prepare actual values for the prompt
         baseline_str = f"{baseline_rate}" if baseline_rate is not None else "not provided"
-        mde_str = f"{minimum_detectable_effect}" if minimum_detectable_effect is not None else "not provided"
+        mde_str = f"{minimum_detectable_effect * 100:.0f}%" if minimum_detectable_effect is not None else "not provided"
         traffic_str = f"{expected_daily_traffic:,}" if expected_daily_traffic is not None else "not provided"
         sample_str = f"{sample_size:,}" if sample_size else "not computed"
         duration_str = f"{estimated_duration}" if estimated_duration else "not computed"
@@ -162,37 +162,41 @@ FORMAT (hard):
   ## Why this experiment
   ## Key design choices
   ## Checks before running
-- 3–5 bullets per section. Never exceed 5 bullets.
+- 4–5 bullets per section. Never exceed 5 bullets.
 - No paragraphs. No numbered lists.
 - Use ONLY the actual values provided in the context.
 - Do NOT invent thresholds, attribution windows, event names, or metric definitions.
-- If a required value is missing or unclear, write "Missing: <field>" and make it a next action.
-- If multiple missing items exist for the same concept, compress them into ONE bullet with a semicolon-separated checklist (do not create extra bullets).
+- If a required value is missing, prefer one practical default with "Assumption:" instead of repeatedly using placeholders.
+- Use "Next action:" only when no safe default exists.
+- Keep "Assumption" + "Next action" combined to at most 2 bullets total across the whole response.
 
 CONTENT GUIDANCE:
 
 ## Why this experiment
-- State the causal effect being isolated, specific to {description} and {variants}.
-- State the decision rule: ship only if Treatment > Control (one-sided) at alpha={alpha} AND effect meets MDE={mde}.
+- State the causal effect being isolated, specific to {description} and {variants}. Do NOT reference other features or use case examples — stay strictly on the user's described experiment.
+- State the decision rule: reject H0 if the result is statistically significant at alpha={alpha} AND the observed relative uplift meets or exceeds the MDE of {mde} (relative improvement over baseline, not absolute percentage points).
 - State downside risk of shipping without evidence, specific to the primary metric moving negatively.
+- Include one business-facing risk sentence tied to {description} and the metric. Do NOT use generic examples from other experiments.
 
 ## Key design choices
-- Randomization: user-level sticky assignment; allocation={allocation}. If allocation is missing, write "Missing: allocation" as a next action.
-- Primary metric: {primary_metrics}. Always require a measurement window definition. If not provided, write "Missing: measurement window" (and DO NOT guess).
-- Planning inputs: baseline={baseline_rate}, MDE={mde}, alpha={alpha}, power={power}.
-- Planning outputs: {sample_size} users/variant and {duration_days} days at {daily_traffic} users/day.
-- Feasibility: if {duration_is_long} is true, explicitly flag it as likely too long and propose concrete levers (increase traffic; accept larger MDE; CUPED/proxy metrics; sequential testing), without adding any new numbers.
+- Randomization: always specify user-level sticky assignment (user_id hash bucketing) and allocation={allocation}.
+- Exposure definition: analyze exposed users only (users who actually encountered the treatment) and call this out explicitly. Use language specific to {description}, not generic examples.
+- Primary metric: {primary_metrics}. Include a fixed measurement window; if not provided, use "Assumption: window = same session or 24h (choose one and keep fixed)".
+- Planning inputs: baseline={baseline_rate}, MDE={mde} (relative uplift), alpha={alpha}, power={power}.
+- MUST include sample size estimation: if {sample_size} and {duration_days} are available (not "not computed"), state them as a dedicated bullet: "Sample size: {sample_size} users/variant; estimated duration: {duration_days} days at {daily_traffic} users/day." If not computed, state: "Sample size: not computed (provide baseline rate, MDE, and daily traffic to calculate)."
+- Add one concise feasibility line: if {duration_is_long} is true, flag timeline risk and name levers (increase traffic; larger MDE; CUPED/proxy metrics; sequential testing); otherwise state timeline is operationally feasible.
+- Optional segmentation line: if mentioning segmentation, keep it to sanity checks only (new vs returning, device), not as formal multiple-comparison inference.
 
 Metric-specific definition checklist rule (use only when the primary metric matches):
-- If primary metric is monetary (AOV / revenue / ARPU / GMV): include one bullet "Missing (monetary metric definition): gross vs net; discounts/coupons; tax/shipping; refunds/cancels; currency; aggregation unit."
-- If primary metric is email open rate: include one bullet "Missing (open rate definition): denominator (delivered vs sent); unique vs total opens; MPP/bot filtering; open attribution window after delivery."
-- If primary metric is activation rate: include one bullet "Missing (activation definition): exact success event; time window (e.g., within first session); de-duplication; eligibility cohort."
+- If primary metric is monetary (AOV / revenue / ARPU / GMV): include one bullet with "Assumption/Next action (monetary definition): gross vs net; discounts/coupons; tax/shipping; refunds/cancels; currency; aggregation unit."
+- If primary metric is email open rate: include one bullet with "Assumption/Next action (open-rate definition): denominator (delivered vs sent); unique vs total opens; MPP/bot filtering; attribution window."
+- If primary metric is activation rate: include one bullet with "Assumption/Next action (activation definition): success event; window; de-duplication; eligibility cohort."
 
 ## Checks before running
-- Instrumentation: exposure event per variant + outcome event; de-dup rules; measurement window. If any are not specified, mark Missing as next actions (no guessing).
+- Instrumentation: require both exposure event and conversion event; include explicit de-dup rule (user_id as primary key).
 - SRM check: within first 1–2 days, compare observed allocation vs {allocation}; if mismatch, stop and fix randomization/instrumentation (do NOT tie SRM to performance).
-- Guardrails: list only the guardrails provided in the hypothesis; if thresholds are not provided, write "Missing: guardrail thresholds" as a next action.
-- Rollout/ramp: staged exposure and monitoring thresholds before full split; if ramp plan is not specified, write "Missing: ramp plan"."""),
+- Guardrails: include at least one negative guardrail specific to {description}; if threshold missing, use "Next action: define guardrail threshold."
+- Rollout/ramp: require staged rollout and monitoring gate; if plan missing, use "Assumption: 10% -> 50% -> 100% ramp if no quality incidents."."""),
 ("human", """Experiment: "{description}"
 
 Context provided:
@@ -243,14 +247,15 @@ Generate the structured rationale using ONLY the actual values above. Be specifi
             print(f"[DEBUG Rationale] line{i:02d}=\"{line}\"")
         
         # Build design card - handle hypothesis that might be a dict
-        hypothesis_raw = design_data.get("hypothesis", "H0: No difference. H1: Treatment differs from control.")
+        hypothesis_raw = design_data.get("hypothesis", "H0: No difference.\nH1: Treatment differs from control.")
         if isinstance(hypothesis_raw, dict):
-            # Convert dict hypothesis to string
+            # Convert dict hypothesis to string with each on its own line
             h0 = hypothesis_raw.get("H0", "No difference between variants")
             h1 = hypothesis_raw.get("H1", "Treatment differs from control")
-            hypothesis = f"H0: {h0}. H1: {h1}"
+            hypothesis = f"H0: {h0}\nH1: {h1}"
         else:
-            hypothesis = str(hypothesis_raw)
+            # Ensure H1 starts on a new line
+            hypothesis = str(hypothesis_raw).replace(" H1:", "\nH1:").replace(". H1:", ".\nH1:")
         
         # Handle variants that might be a list
         variants_raw = design_data.get("variants", "2 variants: control and treatment")
@@ -279,4 +284,3 @@ Generate the structured rationale using ONLY the actual values above. Be specifi
             "design_card": design_card,
             "llm_explanation": llm_explanation
         }
-

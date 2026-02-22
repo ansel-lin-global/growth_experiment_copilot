@@ -44,44 +44,46 @@ def calculate_did(
     # DiD estimator
     did_estimate = post_diff - pre_diff
     
-    # Standard error calculation (simplified approach)
-    # For proportions, use pooled variance
+    # Standard error calculation
     if metric_type == "proportion":
-        # Variance for treatment pre
+        # Variance for proportions: p*(1-p)/n
         var_t_pre = (treatment_pre * (1 - treatment_pre)) / treatment_pre_n if treatment_pre_n > 0 else 0
         var_t_post = (treatment_post * (1 - treatment_post)) / treatment_post_n if treatment_post_n > 0 else 0
         var_c_pre = (control_pre * (1 - control_pre)) / control_pre_n if control_pre_n > 0 else 0
         var_c_post = (control_post * (1 - control_post)) / control_post_n if control_post_n > 0 else 0
         
         se_did = np.sqrt(var_t_pre + var_t_post + var_c_pre + var_c_post)
+        
+        # 95% confidence interval
+        z_critical = 1.96
+        ci_lower = float(did_estimate - z_critical * se_did)
+        ci_upper = float(did_estimate + z_critical * se_did)
+        
+        # P-value (two-sided z-test)
+        if se_did > 0:
+            z_stat = did_estimate / se_did
+            p_value = float(2 * (1 - stats.norm.cdf(abs(z_stat))))
+        else:
+            p_value = None
     else:
-        # For means, use a simplified approach
-        # In practice, you'd want more sophisticated variance estimation
-        se_did = abs(did_estimate) * 0.1  # Simplified placeholder
-    
-    # 95% confidence interval
-    z_critical = 1.96
-    ci_lower = did_estimate - z_critical * se_did
-    ci_upper = did_estimate + z_critical * se_did
-    
-    # P-value (two-sided z-test)
-    if se_did > 0:
-        z_stat = did_estimate / se_did
-        p_value = 2 * (1 - stats.norm.cdf(abs(z_stat)))
-    else:
+        # For mean metrics without individual-level variance data,
+        # we cannot compute valid SE, CI, or p-value from aggregate means alone.
+        ci_lower = None
+        ci_upper = None
         p_value = None
     
     return {
-        "treatment_pre": treatment_pre,
-        "treatment_post": treatment_post,
-        "control_pre": control_pre,
-        "control_post": control_post,
-        "pre_difference": pre_diff,
-        "post_difference": post_diff,
-        "did_estimate": did_estimate,
+        "treatment_pre": float(treatment_pre),
+        "treatment_post": float(treatment_post),
+        "control_pre": float(control_pre),
+        "control_post": float(control_post),
+        "pre_difference": float(pre_diff),
+        "post_difference": float(post_diff),
+        "did_estimate": float(did_estimate),
         "ci_lower": ci_lower,
         "ci_upper": ci_upper,
-        "p_value": p_value
+        "p_value": p_value,
+        "metric_type": metric_type
     }
 
 

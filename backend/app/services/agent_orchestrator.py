@@ -18,7 +18,8 @@ from app.services.agent_report_writer import ReportWriterAgent
 from app.services.stats_calculator import (
     calculate_sample_size_proportion,
     calculate_proportion_difference,
-    estimate_experiment_duration
+    estimate_experiment_duration,
+    check_sample_ratio_mismatch
 )
 from app.services.causal_analyzer import calculate_did
 
@@ -47,14 +48,59 @@ Required info: description (required), baseline_rate, minimum_detectable_effect,
 User has A/B test results and wants analysis. Keywords/signals:
 - "analyze results", "A/B test results", "can I launch", "is it significant"
 - Mentions of control/treatment groups with numbers (users, clicks, conversions, revenue)
+- "evaluate", "ab testing result"
 
-Required info: variants (name, users, clicks/orders/revenue), metric_type (ctr/cvr/revenue_per_user)
+Required info: variants, metric_type
+Optional info: expected_allocation (e.g., [0.5, 0.5] for 50/50 split, [0.7, 0.3] for 70/30). Extract if the user mentions allocation like "50/50", "equal split", "70/30", etc. Default to null if not mentioned.
+
+For extracted_params, variants MUST be an array of objects (NOT strings). Each object has:
+  {"name": "control", "users": 1000, "clicks": null, "orders": 50, "revenue": 5000}
+
+Example extraction for "control users=1000, orders=50, revenue=5000; treatment users=1000, orders=65, revenue=6000":
+  "variants": [
+    {"name": "control", "users": 1000, "clicks": null, "orders": 50, "revenue": 5000},
+    {"name": "treatment", "users": 1000, "clicks": null, "orders": 65, "revenue": 6000}
+  ],
+  "metric_type": "revenue_per_user"
+
+metric_type should be one of: "cvr", "ctr", "revenue_per_user".
+
+CRITICAL metric_type RULE — YOU MUST FOLLOW THIS EXACTLY:
+
+Step 1: Count how many DISTINCT metric data types are present in the user's data:
+  - clicks → CTR candidate
+  - orders/conversions → CVR candidate
+  - revenue → RPU candidate
+
+Step 2: Decision gate:
+  - If count >= 2 AND the user did NOT explicitly name the primary metric → set "has_sufficient_info": false, "metric_type": null, include "metric_type" in "missing_info", and ask which metric to focus on.
+  - If count == 1 → auto-infer (orders only → "cvr", clicks only → "ctr", revenue only → "revenue_per_user").
+  - If the user EXPLICITLY names the metric (e.g., "focus on CVR", "RPU", "conversion rate") → use that, regardless of count.
+
+Step 3: Build the clarification question dynamically:
+  - Include "Click-Through Rate (CTR = clicks/users)" if clicks data is present
+  - Include "Conversion Rate (CVR = orders/users)" if orders data is present
+  - Include "Revenue Per User (RPU = revenue/users)" if revenue data is present
+
+Example: User says "Control: 50k users, 8 orders, $1200 revenue; Treatment: 50k users, 15 orders, $2100 revenue"
+  → orders present (CVR candidate) + revenue present (RPU candidate) = count 2
+  → User did NOT say "focus on CVR" or "RPU"
+  → MUST ask: "You provided both orders and revenue data. Which primary metric should I focus on? (1) Conversion Rate (CVR = orders/users), (2) Revenue Per User (RPU = revenue/users)"
+  → Do NOT default to CVR or RPU. Do NOT proceed with analysis.
 
 ### CAUSAL_ANALYSIS
 User wants causal/DiD analysis for non-randomized experiments. Keywords/signals:
 - "difference in differences", "DiD", "causal analysis", "pre/post", "before and after"
 
 Required info: treatment_pre_users, treatment_pre_outcome, treatment_post_users, treatment_post_outcome, control_pre_users, control_pre_outcome, control_post_users, control_post_outcome, metric_type
+
+metric_type for DiD MUST be one of: "proportion" or "mean".
+
+DEFAULT RULE: When the user provides "users" and "outcome" as separate numbers (e.g., users=40000, outcome=1200), the DEFAULT is ALWAYS "proportion". The outcome is a count of successes, and the rate will be computed as outcome/users (e.g., 1200/40000 = 3.00%).
+
+Only use "mean" if the user EXPLICITLY says "mean", "average value", "ARPU", "AOV", or clearly states the outcome is already a per-user value (e.g., "average revenue per user is $5.20").
+
+Do NOT infer "mean" from outcome magnitude. An outcome of 1200 with 40000 users is 1200 successes (proportion = 3.00%), NOT a mean of 1200 units.
 
 ### GENERAL_CONVERSATION
 Greetings, thanks, or questions about your capabilities.
@@ -66,14 +112,21 @@ IMPORTANT: Respond with a valid JSON object only. No markdown, no explanation, j
 The JSON must have these fields:
 - "intent": one of "experiment_design", "ab_test_analysis", "causal_analysis", "clarification_needed", "general_conversation"
 - "has_sufficient_info": boolean
-- "extracted_params": object with extracted parameters (can be empty object)
+- "extracted_params": object with extracted parameters (can be empty object). For ab_test_analysis, if the user explicitly names or chooses a metric (e.g., "CVR", "RPU", "focus on conversion rate", "CTR"), include "_user_explicit_metric": true inside extracted_params.
 - "missing_info": array of strings (missing field names)
 - "clarification_question": string (question in English to ask user for more info, can be empty)
 - "greeting_response": string (for general_conversation, in English)
+CRITICAL - MULTI-TURN CONVERSATION HANDLING:
+- Extract parameters from ALL messages in the conversation, NOT just the latest message.
+- If an earlier message provided variant data (users, orders, revenue) and the latest message provides the metric_type, COMBINE them into a complete extracted_params with both variants AND metric_type.
+- Only set has_sufficient_info to false if the combined information across all messages is still incomplete.
+- Example: Message 1 provides "control 50k users, 8 orders, $1200 revenue; treatment 50k users, 15 orders, $2100 revenue". The assistant asks for metric_type. Message 2 says "cvr". You should combine the variants from Message 1 with metric_type "cvr" from Message 2, set has_sufficient_info to true, and proceed.
 
 Important:
 - When extracting numbers, be flexible with formats (e.g., "5%" = 0.05, "10k" = 10000)
-- For MDE, if user says "10% relative improvement", treat as 0.10 relative effect
+- For baseline_rate: ALWAYS convert to a proportion between 0 and 1. Examples: "0.8%" → 0.008, "5%" → 0.05, "12%" → 0.12
+- For MDE (minimum_detectable_effect): extract as a decimal relative effect. Examples: "15%" → 0.15, "10% relative improvement" → 0.10, "20%" → 0.20
+- For expected_daily_traffic: extract as an integer. Examples: "40,000" → 40000, "40k" → 40000
 - Always respond in clear, professional English
 - Response must be valid JSON only, no other text
 """
@@ -273,6 +326,27 @@ class GrowthExperimentAgent:
         power = params.get("power", 0.8)
         daily_traffic = params.get("expected_daily_traffic")
         
+        # Normalize baseline_rate: if > 1, treat as percentage (e.g., 0.8 means 0.8%)
+        if baseline_rate is not None:
+            if baseline_rate > 1:
+                baseline_rate = baseline_rate / 100.0  # e.g., 0.8% -> 0.008 already, but 80 -> 0.80
+            elif baseline_rate > 0 and baseline_rate < 1:
+                # Could be a proportion (0.008 for 0.8%) or a percentage-like (0.8 for 0.8%)
+                # Heuristic: if < 0.01, it's already a proportion; if >= 0.01, likely a percentage
+                # But 0.1 could be 10% — that's valid as a proportion. 
+                # Best heuristic: if user said "0.8%", LLM should extract 0.008.
+                # But if LLM extracts 0.8, and context says "0.8%", it means 0.008.
+                # We can't be 100% sure, but for small values like 0.8, it's likely 0.8% = 0.008
+                pass  # Keep as-is; LLM extraction prompt already handles "%"
+        
+        # Normalize MDE: if > 1, treat as percentage (e.g., 15 means 15% = 0.15)
+        if mde is not None and mde > 1:
+            mde = mde / 100.0  # e.g., 15 -> 0.15
+        
+        # Normalize daily_traffic to int
+        if daily_traffic is not None:
+            daily_traffic = int(daily_traffic)
+        
         # Calculate sample size if we have the parameters
         sample_size = None
         estimated_duration = None
@@ -287,14 +361,28 @@ class GrowthExperimentAgent:
                     effect_type="relative"
                 )
                 
-                if daily_traffic is not None:
+                if daily_traffic is not None and daily_traffic > 0:
                     estimated_duration = estimate_experiment_duration(
                         sample_size_per_variant=sample_size,
                         num_variants=2,
                         expected_daily_traffic=daily_traffic
                     )
             except Exception as e:
-                pass  # Continue without sample size calculation
+                # Fallback: simple formula if statsmodels fails
+                try:
+                    import math
+                    p0 = baseline_rate
+                    p1 = p0 * (1 + mde)
+                    z_alpha = 1.96
+                    z_beta = 0.84
+                    pooled_p = (p0 + p1) / 2
+                    n = ((z_alpha * math.sqrt(2 * pooled_p * (1 - pooled_p)) + 
+                          z_beta * math.sqrt(p0 * (1 - p0) + p1 * (1 - p1))) ** 2) / ((p1 - p0) ** 2)
+                    sample_size = int(math.ceil(n))
+                    if daily_traffic is not None and daily_traffic > 0:
+                        estimated_duration = int(math.ceil(sample_size * 2 / daily_traffic))
+                except Exception:
+                    pass  # Truly cannot compute
         
         # Use experiment design agent for structured output
         try:
@@ -341,7 +429,10 @@ class GrowthExperimentAgent:
             "ctr": "ctr",
             "click_through_rate": "ctr",
             "revenue_per_user": "revenue_per_user",
-            "arpu": "revenue_per_user"
+            "rpu": "revenue_per_user",
+            "arpu": "revenue_per_user",
+            "revenue": "revenue_per_user",
+            "aov": "revenue_per_user",
         }
         metric_type = metric_type_mapping.get(metric_type_raw.lower(), "cvr")
         
@@ -352,15 +443,53 @@ class GrowthExperimentAgent:
                 "extra": {"missing_info": ["variants"]}
             }
         
+        # Backend safety net: if multiple metric data types exist but the LLM
+        # auto-selected without the user explicitly stating the metric, force a clarification.
+        # Check the first variant to detect which data types are present.
+        sample_variant = next((v for v in variants if isinstance(v, dict)), {})
+        has_clicks = sample_variant.get("clicks") is not None and sample_variant.get("clicks") != 0
+        has_orders = (sample_variant.get("orders") or sample_variant.get("conversions")) is not None
+        has_revenue = sample_variant.get("revenue") is not None and sample_variant.get("revenue") != 0
+        
+        metric_data_count = sum([has_clicks, has_orders, has_revenue])
+        
+        # If multiple metric types present AND the user didn't explicitly request one
+        # (we detect this by checking if metric_type_raw was a default/generic value)
+        user_explicitly_chose = params.get("_user_explicit_metric", False)
+        if metric_data_count >= 2 and not user_explicitly_chose:
+            options = []
+            if has_clicks:
+                options.append("Click-Through Rate (CTR = clicks/users)")
+            if has_orders:
+                options.append("Conversion Rate (CVR = orders/users)")
+            if has_revenue:
+                options.append("Revenue Per User (RPU = revenue/users)")
+            options_str = ", ".join([f"({i+1}) {opt}" for i, opt in enumerate(options)])
+            return {
+                "reply": f"You provided data with multiple metrics. Which primary metric should I focus on? {options_str}",
+                "detected_intent": "clarification_needed",
+                "extra": {"missing_info": ["metric_type"]}
+            }
+        
         try:
             # Compute metrics and comparisons
             variant_results = []
             for v in variants:
-                users = v.get("users", 0)
+                # Guard: skip if variant is not a dict (LLM extraction error)
+                if not isinstance(v, dict):
+                    continue
+                
+                users = int(v.get("users", 0) or 0)
                 clicks = v.get("clicks")
+                if clicks is not None:
+                    clicks = int(clicks)
                 # Handle various key names for conversions/orders
                 orders = v.get("orders") or v.get("conversions") or v.get("converts")
+                if orders is not None:
+                    orders = int(orders)
                 revenue = v.get("revenue")
+                if revenue is not None:
+                    revenue = float(revenue)
                 
                 ctr = (clicks / users) if clicks is not None and users > 0 else None
                 cvr = (orders / users) if orders is not None and users > 0 else None
@@ -377,6 +506,13 @@ class GrowthExperimentAgent:
                     "arpu": arpu
                 })
             
+            if len(variant_results) < 2:
+                return {
+                    "reply": "I couldn't extract valid variant data. Please provide structured data like: control users=1000, orders=50, revenue=5000; treatment users=1000, orders=65, revenue=6000",
+                    "detected_intent": "clarification_needed",
+                    "extra": {"missing_info": ["variants"]}
+                }
+            
             # Find control variant
             control = next((v for v in variant_results if v["name"].lower() == "control"), variant_results[0])
             
@@ -389,21 +525,54 @@ class GrowthExperimentAgent:
                     continue
                 
                 if metric_type == "ctr" and treatment.get("clicks") is not None and control.get("clicks") is not None:
-                    abs_diff, rel_uplift, (ci_lower, ci_upper), p_value = calculate_proportion_difference(
+                    abs_diff, rel_uplift, (ci_lower, ci_upper), p_value, stat_warnings = calculate_proportion_difference(
                         n1=control["users"],
                         x1=control["clicks"],
                         n2=treatment["users"],
                         x2=treatment["clicks"]
                     )
+                    if stat_warnings:
+                        warnings.extend(stat_warnings)
                     metric_name = "CTR"
                 elif metric_type == "cvr" and treatment.get("orders") is not None and control.get("orders") is not None:
-                    abs_diff, rel_uplift, (ci_lower, ci_upper), p_value = calculate_proportion_difference(
+                    abs_diff, rel_uplift, (ci_lower, ci_upper), p_value, stat_warnings = calculate_proportion_difference(
                         n1=control["users"],
                         x1=control["orders"],
                         n2=treatment["users"],
                         x2=treatment["orders"]
                     )
+                    if stat_warnings:
+                        warnings.extend(stat_warnings)
                     metric_name = "CVR"
+                elif metric_type == "revenue_per_user" and treatment.get("revenue") is not None and control.get("revenue") is not None:
+                    # RPU = Revenue Per User (currency metric, not a proportion)
+                    control_rpu = control["revenue"] / control["users"] if control["users"] > 0 else 0
+                    treatment_rpu = treatment["revenue"] / treatment["users"] if treatment["users"] > 0 else 0
+                    
+                    abs_diff = treatment_rpu - control_rpu
+                    rel_uplift = (abs_diff / control_rpu * 100) if control_rpu > 0 else 0
+                    
+                    # Simplified CI for RPU using normal approximation
+                    # Variance estimate: Var(revenue/n) ≈ (revenue/n)^2 * (1/n) as rough proxy
+                    import math
+                    var_control = (control_rpu ** 2) / control["users"] if control["users"] > 0 else 0
+                    var_treatment = (treatment_rpu ** 2) / treatment["users"] if treatment["users"] > 0 else 0
+                    se = math.sqrt(var_control + var_treatment)
+                    
+                    z = 1.96
+                    ci_lower = abs_diff - z * se
+                    ci_upper = abs_diff + z * se
+                    
+                    # Simplified p-value
+                    if se > 0:
+                        from scipy import stats as scipy_stats
+                        z_stat = abs_diff / se
+                        p_value = 2 * (1 - scipy_stats.norm.cdf(abs(z_stat)))
+                    else:
+                        p_value = 1.0
+                    
+                    stat_warnings = []
+                    metric_name = "Revenue per User"
                 else:
                     continue
                 
@@ -419,6 +588,22 @@ class GrowthExperimentAgent:
                     "is_significant": bool(p_value < 0.05)
                 })
             
+            # SRM check — must run BEFORE interpreting effects
+            expected_allocation = params.get("expected_allocation", None)
+            if expected_allocation is None:
+                # Default to equal allocation (50/50 for 2 variants)
+                expected_allocation = [1.0 / len(variant_results)] * len(variant_results)
+            
+            observed_counts = [v["users"] for v in variant_results]
+            has_srm, srm_p_value, srm_message = check_sample_ratio_mismatch(
+                observed_counts=observed_counts,
+                expected_ratios=expected_allocation
+            )
+            
+            if has_srm:
+                # SRM takes priority — prepend to warnings
+                warnings.insert(0, f"⚠️ SRM WARNING: {srm_message} Allocation imbalance may invalidate this experiment. Investigate randomization before interpreting uplift.")
+            
             # Check sample size
             min_users = min(v["users"] for v in variant_results)
             if min_users < settings.MIN_SAMPLE_SIZE_WARNING:
@@ -428,7 +613,8 @@ class GrowthExperimentAgent:
             llm_report = self.report_writer.write_ab_test_report(
                 variant_results=variant_results,
                 comparisons=comparisons,
-                warnings=warnings
+                warnings=warnings,
+                primary_metric=metric_type
             )
             
             # Format Chinese response
@@ -462,7 +648,17 @@ class GrowthExperimentAgent:
             control_pre_outcome = params.get("control_pre_outcome", 0)
             control_post_users = params.get("control_post_users", 0)
             control_post_outcome = params.get("control_post_outcome", 0)
-            metric_type = params.get("metric_type", "proportion")
+            metric_type_raw = params.get("metric_type", "proportion")
+            
+            # Normalize metric_type for DiD — map aliases to "proportion" or "mean"
+            proportion_aliases = {"proportion", "rate", "cvr", "ctr", "conversion_rate", "click_through_rate", "proportion/rate"}
+            mean_aliases = {"mean", "average", "arpu", "aov", "revenue_per_user", "mean/units"}
+            if metric_type_raw.lower().strip() in proportion_aliases:
+                metric_type = "proportion"
+            elif metric_type_raw.lower().strip() in mean_aliases:
+                metric_type = "mean"
+            else:
+                metric_type = "proportion"  # Safe default
             
             # Calculate rates
             if metric_type == "proportion":
@@ -520,33 +716,49 @@ class GrowthExperimentAgent:
         """Format experiment design result into English response."""
         design_card = result.get("design_card")
         
-        response_parts = ["## 🧪 Experiment Design\n"]
+        response_parts = ["## 🧪 Experiment Design\n\n"]
         
         if design_card:
-            response_parts.append(f"**Goal**: {design_card.goal}\n")
-            response_parts.append(f"**Hypothesis**: {design_card.hypothesis}\n")
-            response_parts.append(f"**Design Type**: {design_card.design_type}\n")
-            response_parts.append(f"**Variants**: {design_card.variants}\n")
+            # Keep core design metadata in bullets for predictable line breaks and readability
+            response_parts.append(f"- **Goal**: {design_card.goal}\n")
+            response_parts.append(f"- **Hypothesis**: {design_card.hypothesis}\n")
+            response_parts.append(f"- **Design Type**: {design_card.design_type}\n")
+            response_parts.append(f"- **Variants**: {design_card.variants}\n")
             
             if design_card.primary_metrics:
-                response_parts.append(f"**Primary Metrics**: {', '.join(design_card.primary_metrics)}\n")
+                response_parts.append(f"- **Primary Metrics**: {', '.join(design_card.primary_metrics)}\n")
             
             if sample_size:
-                response_parts.append(f"\n### 📊 Sample Size Estimation\n")
-                response_parts.append(f"You need **{sample_size:,}** users per variant\n")
+                response_parts.append(f"\n## 📊 Sample Size Estimation\n\n")
+                response_parts.append(f"- **Required users per variant**: {sample_size:,}\n")
             
             if estimated_duration:
-                response_parts.append(f"Estimated duration: **{estimated_duration}** days\n")
+                response_parts.append(f"- **Estimated duration**: {estimated_duration} days\n")
             
             if design_card.notes:
-                response_parts.append(f"\n### ⚠️ Important Notes\n")
-                for note in design_card.notes:
+                # Avoid repeating planning numbers already shown above
+                filtered_notes = [
+                    note for note in design_card.notes
+                    if not any(
+                        phrase in note.lower()
+                        for phrase in [
+                            "minimum detectable effect",
+                            "sample size per variant",
+                            "estimated duration"
+                        ]
+                    )
+                ]
+                if filtered_notes:
+                    response_parts.append(f"\n## ⚠️ Important Notes\n\n")
+                for note in filtered_notes:
                     response_parts.append(f"- {note}\n")
         
         # Add LLM explanation
         llm_explanation = result.get("llm_explanation", "")
         if llm_explanation:
-            response_parts.append(f"\n### 💡 Detailed Explanation\n{llm_explanation}")
+            # Soften placeholder wording for user-facing readability
+            llm_explanation = llm_explanation.replace("Missing:", "Next action:")
+            response_parts.append(f"\n## 💡 Detailed Explanation\n\n{llm_explanation}")
         
         return "".join(response_parts)
     
@@ -576,4 +788,3 @@ class GrowthExperimentAgent:
         """Format causal analysis into English response."""
         # The LLM report is comprehensive - just return it directly
         return llm_report
-
