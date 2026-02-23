@@ -117,14 +117,24 @@ export default function AgentPage() {
   const activeSession = sessions.find(s => s.id === activeSessionId)
   const messages = activeSession?.messages || []
 
-  // Scroll to bottom only when new messages are added
+  // Scroll to bottom when user sends a message or when session changes
   const prevMessagesLength = useRef(0)
+  const prevSessionId = useRef<string | null>(null)
+
   useEffect(() => {
-    if (messages.length > prevMessagesLength.current) {
-      messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+    if (activeSessionId !== prevSessionId.current) {
+      // Instantly scroll to bottom when switching sessions
+      messagesEndRef.current?.scrollIntoView({ behavior: 'auto' })
+      prevSessionId.current = activeSessionId
+    } else if (messages.length > prevMessagesLength.current) {
+      const lastMessage = messages[messages.length - 1]
+      // Only auto-scroll smoothly when a new user message is added
+      if (lastMessage?.role === 'user') {
+        messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' })
+      }
     }
     prevMessagesLength.current = messages.length
-  }, [messages.length])
+  }, [messages.length, messages, activeSessionId])
 
   const createNewSession = useCallback(() => {
     const newSession: ChatSession = {
